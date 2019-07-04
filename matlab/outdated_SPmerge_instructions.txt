@@ -1,0 +1,68 @@
+USAGE GUIDE
+Scanning probe nonlinear drift correction code.
+
+Included MATLAB scripts used and their purposes:
+SPmerge01.m         -Initalize data structures, initial alignment, find reference position.
+SPmerge02.m         -Initial and primary refinement of scanline origins.
+SPmerge03.m         -Generate final corrected image.
+SPmakeImage.m       -Script for generating KDE images from new scanline orgins.
+These scripts primarily work with a matlab struct with default name "sMerge."
+
+Author of all included scripts.
+Colin Ophus, National Center for Electron Microscopy, Molecular Foundry,
+Lawrence Berkeley National Laboratory, Berkeley, CA, USA. (Mar 2015).
+cophus@gmail.com
+
+Usage steps for included synthetic data: image00deg and image90deg
+
+1.  First verify alignment of images.  All images should be passed into 
+    SPmerge01.m with horizontal fast scan directions and without any rotation.
+    SPmerge01.m will rotate and align the data.  Image alignment can be verifed
+    by plotting the data and ensuring horizontal scanlines for all images.
+
+Running these lines:
+>> imagesc(image00deg); axis equal off; colormap(gray(256))
+>> imagesc(image90deg); axis equal off; colormap(gray(256))
+will show that both images have horizontal scanline directions.
+
+To ensure that the scanline orientation directions match those expected by
+SPmerge01.m, we can plot both images at the same time, rotating the second
+one by 90degrees:
+>> imagesc([image00deg rot90(image90deg)]); axis equal off; colormap(gray(256))
+
+Remember that the 90 degree rotation is just for visualization, and that the 
+images should not be rotated when passing them into SPmerge01.m.  If the second
+image were flipped 180 degrees in the two-image plot, we would need to use
+a scanline direction of either -90 or 270 degrees in SPmerge01.m.
+
+2.  Next, initialize the correction struct:
+>> sMerge = SPmerge01([0 90],image00deg,image90deg);
+
+The initial alignment appears quite poor, due to the nonlinear drift.  This 
+is not a problem, as the drift and alignment  will be corrected in subsequent 
+steps.  The yellow "+" mark indicates the starting position for the rough
+alignment.  If this point is inside a region of the images with no contrast,
+you must manually adjust it by changing the coordinates of the struct in 
+your workspace, sMerge.ref, to the position in the image where the initial
+alignment is best.
+
+3.  Perform the drift correction:
+>> sMerge = SPmerge02(sMerge);
+
+Running this script will perform first an initial rough drift correction, and
+then the full nonlinear drift correction described in the manuscript.  
+After the alignment is completed, the script will make two plots:
+-An alignment plot showing the current state of the correction.
+-A plot showing the mean absolute difference at each iteration.  This plot
+is used to show convergence.  In this synthetic dataset, the large drop after
+iteration 1 indicates where a global phase shift took place.  The error does
+not decrease quite to zero, due to the undersampling effect of nonlinear drift.
+
+4.  Generate a final reconstructed output image:
+>> imageFinal = SPmerge03(sMerge);
+
+The resulting image should be fully drift corrected.  To compare this image
+to an image taken with perfect sampling and no drift, plot imageIdeal:
+>> figure(1000); imagesc(imageIdeal); axis equal off; colormap(gray(256))
+
+We see that the reconstruction has succeeded.
