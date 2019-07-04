@@ -7,7 +7,9 @@ Basic description of methods will go here.
 
 ## Authors
 
-Original author of the Matlab code:  Colin Ophus
+Colin ophus
+1 - Original author of the Matlab code.
+2 - Wrote the drift correction paper.
 
 
 
