@@ -10,7 +10,7 @@ This method will also work on most time series, though it does not yet implement
 Running these command lines should reproduce the included example data in matlab.
 
 First, load the data:
->> load('data_examples/nonlinear_drift_correction_synthetic_dataset_for_testing.mat')
+> load('data_examples/nonlinear_drift_correction_synthetic_dataset_for_testing.mat')
 
 Next, verify the input data has horizontal fast scan directions (i.e. most drift artifacts occur in the vertical / row direction). This can also be easily done using windowed FFT images.
 > figure('Name','Measured Data 0deg');imagesc(image00deg); axis equal off; colormap(gray(256));
