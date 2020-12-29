@@ -12,11 +12,11 @@ tic
 
 % Inputs:
 % sMerge                -struct containing data for STEM alignment from SPmerge02
-KDEsigma = 0.5 * 2; %       -Gaussian sigma value used in kernel density estimator. (pixels)
+KDEsigma = 0.5; %       -Gaussian sigma value used in kernel density estimator. (pixels)
 % KDEcutoff = 4;  %       -Cutoff limit of the kernel in units of sigma.
 upsampleFactor = 2;  %  -upsampling factor used in image generation (integer).
 %                        Using a large upsampleFactor can be very slow.
-sigmaDensity = 8;     % -Smoothing sigma value for density estimation. (pixels)
+sigmaDensity = 4;     % -Smoothing sigma value for density estimation. (pixels)
 boundary = 8;  %       -Thickness of windowed boundary. (pixels)
 flagFourierWeighting = 1; % Set to true to enable cos(theta)^2 Fourier weights.
 flagDownsampleOutput = 1;  % Set to true to downsample output to the original
@@ -143,7 +143,9 @@ else
    % density = max(sum(densityArray,3),1);  % Temporary line for huge drifts
    imageFinal(:) = mean(signalArray,3).*density ...
        + (1-density)*median(sMerge.scanLines(:));
-   imageFinal = imageFinal / upsampleFactor^2;  % Keep intensity constant
+   if flagDownsampleOutput == false
+       imageFinal = imageFinal / upsampleFactor^2;  % Keep intensity constant
+   end
 end
 
 

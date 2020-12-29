@@ -42,13 +42,12 @@ densityDist = mean([size(sMerge.scanLines,1) ...
     size(sMerge.scanLines,2)])/32; % density mask edge threshold 
 % To generate a moving average along the scanline origins
 % (make scanline steps more linear), use the settings below:
-originWindowAverage = 16;  % Window sigma in px for smoothing scanline origins.
+originWindowAverage = 4;   % Window sigma in px for smoothing scanline origins.
 %                           Set this value to zero to not use window avg.
 %                           This window is relative to linear steps.
-originInitialAverage = mean([size(sMerge.scanLines,1) ...
-    size(sMerge.scanLines,2)])/4;  % Window sigma in px for initial smoothing.
+% originWindowAverage = size(sMerge.scanLines,1) / 128; 
+originInitialAverage = size(sMerge.scanLines,1) / 16;  % Window sigma in px for initial smoothing.
 resetInitialAlignment = 0;   % Set this value to true to redo initial alignment.
-
 
 % Outputs:
 % sMerge - struct containing data for STEM alignment
@@ -177,9 +176,11 @@ if (~isfield(sMerge,'scanActive') || resetInitialAlignment == true) ...
                     %                     xInd = max(min(xInd,sMerge.imageSize(1)-1),1);
                     %                     yInd = max(min(yInd,sMerge.imageSize(2)-1),1);
                     for a2 = 1:size(dxy,1)
-                        score(a2) = sum(abs(imageAlign(sub2ind(sMerge.imageSize,...
-                            xInd + dxy(a2,1),yInd + dxy(a2,2))) ...
-                            - sMerge.scanLines(indMove(a1),:,a0)));
+                        try
+                            score(a2) = sum(abs(imageAlign(sub2ind(sMerge.imageSize,...
+                                xInd + dxy(a2,1),yInd + dxy(a2,2))) ...
+                                - sMerge.scanLines(indMove(a1),:,a0)));
+                        end
                     end
                     [~,ind] = min(score);
                     sMerge.scanOr(indMove(a1),1:2,a0) = xyOr ...

@@ -17,11 +17,11 @@ function [sMerge] = SPmerge01linear(scanAngles,varargin)
 % images                - 2D image arrays, order in scanAngles, all same size.
 % sigmaLP = 32; %       - sigma value in pixels for initial alignment LP filter. 
 flagReportProgress = 1;  % Set to true to see updates on console.v =
-paddingScale = (1+1/4);%1.5;    % - padding amount for scaling of the output.
+paddingScale = (1+1/2);%1.5;    % - padding amount for scaling of the output.
 sMerge.KDEsigma = 1/2; % - Smoothing between pixels for KDE.
 sMerge.edgeWidth = 1/128; % - size of edge blending relative to input images.
-sMerge.linearSearch = linspace(-0.02,0.02,1+2*2);  % Initial linear search vector, relative to image size.
-% sMerge.linearSearch = linspace(-0.04,0.04,1+2*4);  % Initial linear search vector, relative to image size.
+% sMerge.linearSearch = linspace(-0.02,0.02,1+2*4);  % Initial linear search vector, relative to image size.
+sMerge.linearSearch = linspace(-0.08,0.08,1+2*4);  % Initial linear search vector, relative to image size.
 
 % flagSkipInitialAlignment = 0;  % Set to true to skip initial phase correlation.
 % flagCrossCorrelation = 0+1;  % Set to true to use cross correlation.

@@ -34,18 +34,14 @@ The above command is equivalent to using sMerge = SPmerge02(sMerge,32); or sMerg
 
 Other notes - I've found that the new linear drift search finds a good initial alignment for most experimental datasets. This is the motivation behind defaulting to 0 iterations for the "wrinkle smoothing" step. However some long dwell time experiments will have slowly varying drift vectors, and so I've left this algorithm in this code.
 
-The vast majority of bad alignments happen when the scan lines are not horizontal, or the images have a large amound of fast scan error (requires a different algorithm to correct). Most orthogonal image pairs can be well-aligned by playing around with this setting in SPmerge02.m:
+The vast majority of bad alignments happen when the scan lines are not horizontal, or the images have a large amound of fast scan error (requires a different algorithm to correct). Most orthogonal image pairs can be well-aligned by playing around with this setting:
 originWindowAverage = 4;
-Setting this value too large will render the algorithm unable to fit local origin shifts, and setting it too small could overfit to noise. The related value for the "wrinkle smoothing" algorithm is:
-originInitialAverage = size(sMerge.scanLines,1) / 16;
 
-The other important parameters to check are those that change the initial guess for the alignment. sMerge.ref for example, or the linear search steps in SPmerge01.m:
-sMerge.linearSearch = linspace(-0.08,0.08,1+2*4);  
+Setting this value too large will render the algorithm unable to fit local d
 
-It's also worth pointing out that the algoithm requires enough padding around the images to fit all of the image translations - make sure this value in SPmerge01.m is not too small:
-paddingScale = (1+1/2);
 
-If you have image pairs that you are having difficulty with, please feel free to email them to me at clophus@lbl.gov and I would be happy to have a look!
+
+
 
 
 
