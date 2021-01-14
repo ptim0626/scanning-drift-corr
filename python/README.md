@@ -11,3 +11,5 @@ To install locally in editable mode, run
 ```
 pip install -e .
 ```
+
+After installing, you can try to run `example.py`. This script illustrates basic usage of the Python interface.
