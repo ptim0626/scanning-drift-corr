@@ -60,10 +60,19 @@ for a0 = 1:sMerge.numImages
         xy(:,1) = xy(:,1) - size(varargin{1}(:,:,a0),1)/2;
         xy(:,2) = xy(:,2) - size(varargin{1}(:,:,a0),2)/2;
     end
-    xy = [xy(:,1)*cos(scanAngles(a0)*pi/180) ...
-        - xy(:,2)*sin(scanAngles(a0)*pi/180) ...
-        xy(:,2)*cos(scanAngles(a0)*pi/180) ...
-        + xy(:,1)*sin(scanAngles(a0)*pi/180)];
+%     xy = [xy(:,1)*cos(scanAngles(a0)*pi/180) ...
+%         - xy(:,2)*sin(scanAngles(a0)*pi/180) ...
+%         xy(:,2)*cos(scanAngles(a0)*pi/180) ...
+%         + xy(:,1)*sin(scanAngles(a0)*pi/180)];
+%   ============ my change ============
+    digitsOld = digits(50);
+    D = vpa(deg2rad(scanAngles(a0)));
+    xy = [xy(:,1)*cos(D) - xy(:,2)*sin(D) ...
+          xy(:,2)*cos(D) + xy(:,1)*sin(D)];
+    digits(digitsOld);
+    xy = double(xy);
+%   ==================================
+
     xy(:,1) = xy(:,1) + sMerge.imageSize(1)/2;
     xy(:,2) = xy(:,2) + sMerge.imageSize(2)/2;
     xy(:,1) = xy(:,1) - mod(xy(1,1),1);
