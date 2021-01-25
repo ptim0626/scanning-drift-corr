@@ -50,6 +50,7 @@ class sMerge:
         self.xyLinearDrift = None
         self.ref = np.floor(self.imageSize/2 + 0.5).astype(int) - 1
         self.scanActive = None
+        self.imageRef = None
 
     def _input_validation(self, scanAngles, images):
         """Determine whether provided images is a stack, the shapes of them

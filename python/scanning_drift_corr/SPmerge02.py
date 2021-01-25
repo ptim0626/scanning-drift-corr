@@ -3,8 +3,10 @@
 
 import numpy as np
 from scipy.signal import convolve
+from scipy.ndimage.morphology import binary_dilation
 
 # from scanning_drift_corr.sMerge import sMerge
+from scanning_drift_corr.SPmakeImage import SPmakeImage
 
 def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None):
     
@@ -93,33 +95,91 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None):
     flag = ((sm.scanActive is None) | resetInitialAlignment | 
             (initialRefineSteps > 0)) & (nargs == 3)
     if flag:
-        _initial_refinement(sm, initialRefineSteps, distStart)
+        _initial_refinement(sm, initialRefineSteps, distStart, densityCutoff)
 
     
     return sm
 
 
-def _initial_refinement(sm, initialRefineSteps, distStart):
+def _initial_refinement(sm, initialRefineSteps, distStart, densityCutoff):
 
     for _ in range(initialRefineSteps):
         sz = sm.scanLines.shape[1]
         sm.scanActive = np.zeros((sm.numImages, sz), dtype=bool)
         
-        # Get starting scanlines for initial alignment
-        indStart = np.zeros(sm.numImages)
+        indStart = _get_starting_scanline(sm, distStart)
+            
+        # Rough initial alignment of scanline origins, to nearest pixel
+        inds = np.arange(sz)
+        dxy = np.array([[0,1,-1,0,0], [0,0,0,1,-1]])
+        score = np.zeros(dxy.shape[1])
         for k in range(sm.numImages):
-            # Scan line direction and origins
-            v = np.array([-sm.scanDir[k, 1], sm.scanDir[k, 0]])
-            or_ = sm.scanOr[k, ...]
+            # Determine which image to align to, based on orthogonality
+            ortho = (sm.scanDir[k, :] * sm.scanDir).sum(axis=1)
+            indAlign = np.argmin(np.abs(ortho))
             
-            # Determine closest scanline origin from point-line distance
-            c = -np.sum(sm.ref*v)
-            dist = np.abs(v[0]*or_[0,:] + v[1]*or_[1,:] + c) / np.linalg.norm(v)
-            indStart[k] = np.argmin(dist)
-            sub = dist < distStart
-            sm.scanActive[k, sub] = True
+            if sm.imageRef is None:
+
+                sm = SPmakeImage(sm, indAlign, sm.scanActive[indAlign, :])
+
+                imageAlign = sm.imageTransform[indAlign, ...] * (sm.imageDensity[indAlign, ...]>densityCutoff)
+
+            else:
+                imageAlign = sm.imageRef
+        
+            # align origins
+            dOr = sm.scanOr[k, :, 1:] - sm.scanOr[k, :, :-1]
+            sz = sm.scanLines.shape[1]
+            xyStep = np.mean(dOr, axis=1)
+            indAligned = np.zeros(sz, dtype=bool)
+            indAligned[int(indStart[k])] = True
             
-            print(dist)
             
-            
-            
+            # while not indAligned.all():
+
+            # Align selected scanlines
+            _align_selected_scanline(sm, k, inds, indAligned, xyStep)
+
+
+        
+def _get_starting_scanline(sm, distStart):
+    # Get starting scanlines for initial alignment
+    indStart = np.zeros(sm.numImages)
+    for k in range(sm.numImages):
+        # Scan line direction and origins
+        v = np.array([-sm.scanDir[k, 1], sm.scanDir[k, 0]])
+        or_ = sm.scanOr[k, ...]
+        
+        # Determine closest scanline origin from point-line distance
+        c = -np.sum(sm.ref*v)
+        dist = np.abs(v[0]*or_[0,:] + v[1]*or_[1,:] + c) / np.linalg.norm(v)
+        indStart[k] = np.argmin(dist)
+        sub = dist < distStart
+        sm.scanActive[k, sub] = True   
+    
+    return indStart
+    
+        
+        
+        
+def _align_selected_scanline(sm, k, inds, indAligned, xyStep):
+    # Determine scanline indices to check next
+    v = binary_dilation(indAligned)
+    v[indAligned] = False
+    indMove = inds[v]
+
+    # currently active scanlines
+    indsActive = inds[indAligned]
+    
+    for m in range(indMove.size):
+        # determine starting point from neighboring scanline
+        minDistInd = np.argmin(np.abs(indMove[m] - indsActive))
+        
+        # Step perpendicular to scanDir
+        indMin = indsActive[minDistInd]
+        xyOr = sm.scanOr[k, :, indMin] + xyStep * (indMove[m] - indMin)
+
+        # Refine score by moving origin of this scanline
+        xInd = np.floor(xyOr[0] + 1 + (inds+1)*sm.scanDir[k, 0] + 0.5).astype(int) - 1
+        yInd = np.floor(xyOr[1] + 1 + (inds+1)*sm.scanDir[k, 1] + 0.5).astype(int) - 1
+        

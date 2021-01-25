@@ -40,6 +40,9 @@ def SPmakeImage(sMerge, indImage, indLines=None):
     # Apply KDE
     sig, count = _apply_KDE(sMerge, sig, count)
 
+    # cheat mode
+    count += 1e-10
+
     # the precision(?) in MATLAB sometimes results in edge value being evaluated
     # as zero while it is not (shouldn't be worried?)
     sub = count > 0
