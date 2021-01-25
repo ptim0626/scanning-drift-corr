@@ -95,13 +95,13 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None):
     flag = ((sm.scanActive is None) | resetInitialAlignment | 
             (initialRefineSteps > 0)) & (nargs == 3)
     if flag:
-        _initial_refinement(sm, initialRefineSteps, distStart, densityCutoff)
+        _initial_refinement(sm, initialRefineSteps, distStart, densityCutoff, initialShiftMaximum)
 
     
     return sm
 
 
-def _initial_refinement(sm, initialRefineSteps, distStart, densityCutoff):
+def _initial_refinement(sm, initialRefineSteps, distStart, densityCutoff, initialShiftMaximum):
 
     for _ in range(initialRefineSteps):
         sz = sm.scanLines.shape[1]
@@ -135,10 +135,10 @@ def _initial_refinement(sm, initialRefineSteps, distStart, densityCutoff):
             indAligned[int(indStart[k])] = True
             
             
-            # while not indAligned.all():
+            while not indAligned.all():
 
-            # Align selected scanlines
-            _align_selected_scanline(sm, k, inds, indAligned, xyStep)
+                # Align selected scanlines
+                _align_selected_scanline(sm, k, inds, indAligned, xyStep, dxy, score, imageAlign, initialShiftMaximum)
 
 
         
@@ -162,7 +162,7 @@ def _get_starting_scanline(sm, distStart):
         
         
         
-def _align_selected_scanline(sm, k, inds, indAligned, xyStep):
+def _align_selected_scanline(sm, k, inds, indAligned, xyStep, dxy, score, imageAlign, initialShiftMaximum):
     # Determine scanline indices to check next
     v = binary_dilation(indAligned)
     v[indAligned] = False
@@ -183,3 +183,29 @@ def _align_selected_scanline(sm, k, inds, indAligned, xyStep):
         xInd = np.floor(xyOr[0] + 1 + (inds+1)*sm.scanDir[k, 0] + 0.5).astype(int) - 1
         yInd = np.floor(xyOr[1] + 1 + (inds+1)*sm.scanDir[k, 1] + 0.5).astype(int) - 1
         
+        # Prevent pixels from leaving image boundaries (here mainly for strange image?)
+        xInd = np.clip(xInd, 0, sm.imageSize[0]-2).ravel()
+        yInd = np.clip(yInd, 0, sm.imageSize[1]-2).ravel()
+        
+        for n in range(dxy.shape[1]):
+
+            nxInd = xInd + dxy[0, n]
+            nyInd = yInd + dxy[1, n]
+            # Prevent pixels from leaving image boundaries (here mainly for strange image?)
+            nxInd = np.clip(nxInd, 0, sm.imageSize[0]-2).ravel()
+            nyInd = np.clip(nyInd, 0, sm.imageSize[1]-2).ravel()
+
+
+            pp = np.ravel_multi_index((nxInd, nyInd), sm.imageSize)
+
+            # scanLines indices switched?
+            score[n] = np.abs(imageAlign.ravel()[pp] - sm.scanLines[k, indMove[m], :]).sum()
+
+        ind = np.argmin(score)
+        
+        # change sMerge!
+        sm.scanOr[k, :, indMove[m]] = xyOr + dxy[:, ind]*initialShiftMaximum
+        indAligned[indMove[m]] = True
+
+        #TODO add progress bar tqdm later
+
