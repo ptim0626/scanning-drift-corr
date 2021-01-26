@@ -4,7 +4,7 @@
 import numpy as np
 from scipy.ndimage import gaussian_filter, distance_transform_edt
 
-def SPmakeImage(sMerge, indImage, indLines=None):
+def SPmakeImage(sMerge, indImage, indLines=None, delta=1e-5):
     """
     This function generates a resampled scanning probe image with dimensions
     of imageSize, from a an array of N scan lines given in scaneLines,
@@ -22,6 +22,10 @@ def SPmakeImage(sMerge, indImage, indLines=None):
     indLines : ndarray, optional
         an array of binary values specifying which lines to include.
         The default is None, set to use all rows.
+    cheat : float, optional
+        Developer's use, for normal usage, should be 0. A small number to
+        the 'count' array to be consistent with MATLAB while checking the
+        logical of implementation.
 
     Returns
     -------
@@ -40,8 +44,9 @@ def SPmakeImage(sMerge, indImage, indLines=None):
     # Apply KDE
     sig, count = _apply_KDE(sMerge, sig, count)
 
-    # cheat mode
-    count += 1e-10
+    # cheat mode!
+    if delta:
+        count += delta
 
     # the precision(?) in MATLAB sometimes results in edge value being evaluated
     # as zero while it is not (shouldn't be worried?)
