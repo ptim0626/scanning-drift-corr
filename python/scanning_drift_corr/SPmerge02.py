@@ -13,10 +13,10 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
     # only_initial_refinemen, used for testing only initial refinement
     # should split SPmerge02 into two parts later
 
-    flagPlot = 1
+    flagPlot = True
 
     # Set to true to see updates on console.
-    flagReportProgress = 1
+    flagReportProgress = True
 
     # density cutoff for image boundaries (norm. to 1).
     densityCutoff = 0.8
@@ -43,7 +43,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
 
     # Use this flag to force origins to be ordered, i.e.
     # disallow points from changing their order.
-    flagPointOrder = 1
+    flagPointOrder = True
 
     # If this flag is true, a global phase correlation
     # performed each primary iteration (This is meant to
@@ -138,10 +138,51 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
 
         # Get mean absolute difference as a fraction of the mean scanline intensity.
         imgT_mean = sm.imageTransform.mean(axis=0)
-        Idiff = np.abs(sm.imageTransform - imgT_mean).mean(axis=0)
+        Idiff = np.abs(sm.imageTransform - imgT_mean).mean(axis=0)        
+        dmask = sm.imageDensity.min(axis=0) > densityCutoff
         img_mean = np.abs(sm.scanLines).mean()
-        # meanAbsDiff
-        
+        meanAbsDiff = Idiff[dmask].mean() / img_mean
+        sm.stats[alignStep-1, :] = np.array([alignStep-1, meanAbsDiff])
+
+        # If required, check for global alignment of images
+        if flagGlobalShift:
+            print('Checking global alignment ...')
+            _global_phase_correlation(sm, meanAbsDiff, flagGlobalShiftIncrease, 
+                                      minGlobalShift, refineInitialStep)
+
+        # Refine each image in turn, against the sum of all other images
+        for k in range(sm.numImages):
+            # Generate alignment image, mean of all other scanline datasets,
+            # unless user has specified a reference image.
+            if sm.imageRef is None:
+                indsAlign = np.arange(sm.numImages, dtype=int)
+                indsAlign = indsAlign[indsAlign != k]
+
+                dens_cut = sm.imageDensity[indsAlign, ...] > densityCutoff
+                imageAlign = (sm.imageTransform[indsAlign, ...] * dens_cut).sum(axis=0)
+                dens = dens_cut.sum(axis=0)
+                sub = dens > 0
+                imageAlign[sub] = imageAlign[sub] / dens[sub]
+                imageAlign[~sub] = np.mean(imageAlign[sub])
+            else:
+                imageAlign = sm.imageRef
+
+            # If ordering is used as a condition, determine parametric positions
+            if flagPointOrder:
+                # Use vector perpendicular to scan direction (negative 90 deg)
+                nn = np.array([sm.scanDir[k, 1], -sm.scanDir[k, 0]])
+                # offset 1 for MATLAB coordinate system
+                vParam = nn[0]*(sm.scanOr[k, 0, :]+1) + nn[1]*(sm.scanOr[k, 1, :]+1)
+
+            # Loop through each scanline and perform alignment
+            for m in range(sm.scanLines.shape[1]):
+                # Refine score by moving the origin of this scanline
+                orTest = sm.scanOr[k, :, m][:, None] + dxy*scanOrStep[k, m]
+
+                # If required, force ordering of points
+                if flagPointOrder:
+                    pass
+
 
         alignStep += 1
 
@@ -299,3 +340,6 @@ def _align_selected_scanline(sm, k, inds, indAligned, xyStep, dxy, score, imageA
 
         #TODO add progress bar tqdm later
 
+def _global_phase_correlation(sm, meanAbsDiff, flagGlobalShiftIncrease, 
+                              minGlobalShift, refineInitialStep):
+    pass
