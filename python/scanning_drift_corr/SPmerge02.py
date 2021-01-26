@@ -8,7 +8,10 @@ from scipy.ndimage.morphology import binary_dilation
 # from scanning_drift_corr.sMerge import sMerge
 from scanning_drift_corr.SPmakeImage import SPmakeImage
 
-def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None):
+def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, 
+              only_initial_refinemen=False):
+    # only_initial_refinemen, used for testing only initial refinement
+    # should split SPmerge02 into two parts later
 
     flagPlot = 1
 
@@ -90,9 +93,20 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None):
     doInitialRefine = ((sm.scanActive is None) | resetInitialAlignment |
                        (initialRefineSteps > 0)) & (nargs == 3)
     if doInitialRefine:
+        print('Initial refinement ...')
+        
         _initial_refinement(sm, initialRefineSteps, distStart,
                             densityCutoff, initialShiftMaximum,
                             originInitialAverage, KDEorigin, KDEnorm, basisOr, scanOrLinear)
+
+    # later remove this
+    if only_initial_refinemen:
+        return sm
+
+    # ==================================
+    # split here when refactoring
+    # ==================================
+
 
     # Make kernel for moving average of origins
     if originInitialAverage > 0:
@@ -100,8 +114,39 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None):
     else:
         KDEorigin, KDEnorm, basisOr, scanOrLinear = 1, None, None, None
 
+
     # Main alignment steps
     print('Beginning primary refinement ...')
+
+
+    scanOrStep = np.ones((sm.numImages, sm.nr)) * refineInitialStep
+    inds = np.arange(sm.nc)
+    dxy = np.array([[0,1,-1,0,0], [0,0,0,1,-1]])
+    score = np.zeros(dxy.shape[1])
+    alignStep = 1
+    sm.stats = np.zeros((refineMaxSteps+1, 2))
+    indsLoop = np.arange(sm.numImages)
+
+
+    while alignStep <= refineMaxSteps:
+        # Reset pixels moved count
+        pixelsMoved = 0
+
+        # Compute all images from current origins
+        for k in range(sm.numImages):
+            sm = SPmakeImage(sm, k)
+
+        # Get mean absolute difference as a fraction of the mean scanline intensity.
+        imgT_mean = sm.imageTransform.mean(axis=0)
+        Idiff = np.abs(sm.imageTransform - imgT_mean).mean(axis=0)
+        img_mean = np.abs(sm.scanLines).mean()
+        # meanAbsDiff
+        
+
+        alignStep += 1
+
+
+
 
     return sm
 
@@ -229,22 +274,22 @@ def _align_selected_scanline(sm, k, inds, indAligned, xyStep, dxy, score, imageA
         yInd = np.floor(xyOr[1] + 1 + (inds+1)*sm.scanDir[k, 1] + 0.5).astype(int) - 1
 
         # Prevent pixels from leaving image boundaries (here mainly for strange image?)
+        # I think better to check?
         xInd = np.clip(xInd, 0, sm.imageSize[0]-2).ravel()
         yInd = np.clip(yInd, 0, sm.imageSize[1]-2).ravel()
 
         for n in range(dxy.shape[1]):
-
             nxInd = xInd + dxy[0, n]
             nyInd = yInd + dxy[1, n]
+            
             # Prevent pixels from leaving image boundaries (here mainly for strange image?)
+            # I think better to check?
             nxInd = np.clip(nxInd, 0, sm.imageSize[0]-2).ravel()
             nyInd = np.clip(nyInd, 0, sm.imageSize[1]-2).ravel()
-
-
-            pp = np.ravel_multi_index((nxInd, nyInd), sm.imageSize)
+            rInd = np.ravel_multi_index((nxInd, nyInd), sm.imageSize)
 
             # scanLines indices switched?
-            score[n] = np.abs(imageAlign.ravel()[pp] - sm.scanLines[k, indMove[m], :]).sum()
+            score[n] = np.abs(imageAlign.ravel()[rInd] - sm.scanLines[k, indMove[m], :]).sum()
 
         ind = np.argmin(score)
 
