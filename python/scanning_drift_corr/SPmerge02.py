@@ -2,10 +2,10 @@
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.signal import convolve
 from scipy.ndimage.morphology import binary_dilation
 
-# from scanning_drift_corr.sMerge import sMerge
 from scanning_drift_corr.SPmakeImage import SPmakeImage
 
 def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
@@ -248,8 +248,17 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
     for k in range(sm.numImages):
         sm = SPmakeImage(sm, k)
 
+    # Get final stats (instead of just before plotting)
+    # Get mean absolute difference as a fraction of the mean scanline intensity.
+    imgT_mean = sm.imageTransform.mean(axis=0)
+    Idiff = np.abs(sm.imageTransform - imgT_mean).mean(axis=0)
+    dmask = sm.imageDensity.min(axis=0) > densityCutoff
+    img_mean = np.abs(sm.scanLines).mean()
+    meanAbsDiff = Idiff[dmask].mean() / img_mean
+    sm.stats[alignStep-1, :] = np.array([alignStep-1, meanAbsDiff])
+
     if flagPlot:
-        pass
+        _plot(sm)
 
 
     return sm
@@ -427,3 +436,44 @@ def _align_selected_scanline(sm, k, inds, indAligned, xyStep, dxy, score, imageA
 def _global_phase_correlation(sm, meanAbsDiff, flagGlobalShiftIncrease,
                               minGlobalShift, refineInitialStep):
     pass
+
+
+
+def _plot(sm):
+    imagePlot = (sm.imageTransform*sm.imageDensity).sum(axis=0)
+    dens = sm.imageDensity.sum(axis=0)
+    mask = dens > 0
+    imagePlot[mask] /= dens[mask]
+
+    # Scale intensity of image
+    mask = dens > 0.5
+    imagePlot -= imagePlot[mask].mean()
+    imagePlot /= np.sqrt(np.mean(imagePlot[mask]**2))
+    
+    fig, ax = plt.subplots()
+    ax.matshow(imagePlot, cmap='gray')
+
+    # RGB colours
+    cvals = np.array([[1, 0, 0],
+                      [0, 0.7, 0],
+                      [0, 0.6, 1],
+                      [1, 0.7, 0],
+                      [1, 0, 1],
+                      [0, 0, 1]])
+    
+    # put origins on plot
+    for k in range(sm.numImages):
+        x = sm.scanOr[k, 1, :]
+        y = sm.scanOr[k, 0, :]
+        c = cvals[k % cvals.shape[0], :]
+
+        ax.plot(x, y, marker='.', markersize=12, linestyle='None', color=c)    
+        
+    # Plot statistics
+    if sm.stats.shape[0] > 1:
+        fig, ax = plt.subplots()
+        ax.plot(sm.stats[:, 0], sm.stats[:, 1]*100, color='red', linewidth=2)
+        ax.set_xlabel('Iteration [Step Number]')
+        ax.set_ylabel('Mean Absolute Difference [%]')
+    
+    return
