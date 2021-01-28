@@ -6,7 +6,7 @@ from scipy.ndimage import gaussian_filter
 
 from scanning_drift_corr.tools import distance_transform
 
-def SPmakeImage(sMerge, indImage, indLines=None, delta=1e-5):
+def SPmakeImage(sMerge, indImage, indLines=None, delta=0):
     """
     This function generates a resampled scanning probe image with dimensions
     of imageSize, from a an array of N scan lines given in scaneLines,

@@ -1,9 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
-import scipy.io as sio
 
-from scanning_drift_corr.SPmerge01linear import SPmerge01linear
+import scanning_drift_corr.api as sdc
 
 # read the simulated data
 with h5py.File('../data_examples/nonlinear_drift_correction_synthetic_dataset_for_testing.mat', 'r') as f:
@@ -11,57 +10,42 @@ with h5py.File('../data_examples/nonlinear_drift_correction_synthetic_dataset_fo
     image90deg = np.array(f['image90deg']).T
     imageIdeal = np.array(f['imageIdeal']).T
 
+# ===================================
 # the Python interface
+# ===================================
 scanAngles = (0, 90)
-sm = SPmerge01linear(scanAngles, image00deg, image90deg)
+sm = sdc.SPmerge01linear(scanAngles, image00deg, image90deg)
 
-# ------------------
-# the following just compares MATLAB and Python results
-# ------------------
-# python results
-img00deg_py = sm.imageTransform[0, ...]
-img90deg_py = sm.imageTransform[1, ...]
-dens00deg_py = sm.imageDensity[0, ...]
-dens90deg_py = sm.imageDensity[1, ...]
+sm = sdc.SPmerge02(sm, 32, 8)
 
-# MATLAB results
-fpath = 'scanning_drift_corr/tests/matlab_result/'
-mstruct = sio.loadmat(fpath + 'SPmerge01linear_result_0_90_simulated_data.mat')
-img00deg_m = mstruct['it1']
-img90deg_m = mstruct['it2']
-dens00deg_m = mstruct['id1']
-dens90deg_m = mstruct['id2']
+imageFinal, signalArray, densityArray = sdc.SPmerge03(sm)
+# ===================================
+# the Python interface
+# ===================================
 
-# show transformed image from python and MATLAB
-fig, ax = plt.subplots(1,2)
-ax[0].matshow(img00deg_py, cmap='gray')
-ax[1].matshow(img00deg_m, cmap='gray')
-ax[0].set_title('Python 0 deg')
-ax[1].set_title('MATLAB 0 deg')
+# compare with the ideal image
+fig, ax = plt.subplots(1,2, figsize=(16,9))
+ax[0].matshow(imageFinal, cmap='gray', vmin=5.5, vmax=7)
+ax[1].matshow(imageIdeal, cmap='gray', vmin=5.5, vmax=7)
+ax[0].set_title('Corrected image')
+ax[1].set_title('Ideal image')
 
-fig, ax = plt.subplots(1,2)
-ax[0].matshow(img90deg_py, cmap='gray')
-ax[1].matshow(img90deg_m, cmap='gray')
-ax[0].set_title('Python 90 deg')
-ax[1].set_title('MATLAB 90 deg')
+# estimated image on each scan
+fig, ax = plt.subplots(1,2, figsize=(16,9))
+ax[0].matshow(image00deg, cmap='gray')
+ax[1].matshow(signalArray[0,...], cmap='gray')
+ax[0].set_title('Original 0 deg image')
+ax[1].set_title('Estimated 0 deg image')
 
-# show their differences
-# note the colour scale!
-# beside the edges, the difference is from numeric noise
-fig, ax = plt.subplots()
-ax.matshow(np.abs(img00deg_py-img00deg_m), cmap='gray', vmax=1e-14)
-ax.set_title('Intensity difference 0 deg')
+fig, ax = plt.subplots(1,2, figsize=(16,9))
+ax[0].matshow(image90deg, cmap='gray')
+ax[1].matshow(signalArray[1,...], cmap='gray')
+ax[0].set_title('Original 90 deg image')
+ax[1].set_title('Estimated 90 deg image at 0 deg')
 
-fig, ax = plt.subplots()
-ax.matshow(np.abs(img90deg_py-img90deg_m), cmap='gray', vmax=1e-14)
-ax.set_title('Intensity difference 90 deg')
-
-# show the image density differences
-# the reason for differences in edges
-fig, ax = plt.subplots()
-ax.matshow(np.abs(dens00deg_py-dens00deg_m), cmap='gray')
-ax.set_title('Image density difference 0 deg')
-
-fig, ax = plt.subplots()
-ax.matshow(np.abs(dens90deg_py-dens90deg_m), cmap='gray')
-ax.set_title('Image density difference 90 deg')
+# estimated density on each scan
+fig, ax = plt.subplots(1,2, figsize=(16,9))
+ax[0].matshow(densityArray[0,...], cmap='gray')
+ax[1].matshow(densityArray[1,...], cmap='gray')
+ax[0].set_title('Estimated density at 0 deg')
+ax[1].set_title('Estimated denstiy at 90 deg')
