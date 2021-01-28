@@ -5,9 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import convolve
 from scipy.ndimage.morphology import binary_dilation
-from scipy.ndimage import distance_transform_edt
 
 from scanning_drift_corr.SPmakeImage import SPmakeImage
+from scanning_drift_corr.tools import distance_transform
 
 def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
               only_initial_refinemen=False, flagGlobalShift=True):
@@ -450,7 +450,7 @@ def _global_phase_correlation(sm, scanOrStep, meanAbsDiff, densityCutoff, densit
     # Align to windowed image 0 or imageRef
     intensityMedian = np.median(sm.scanLines)
     cut = sm.imageDensity[0, ...] < densityCutoff
-    min_d = np.minimum(distance_transform_edt(~cut) / densityDist, 1)
+    min_d = np.minimum(distance_transform(cut) / densityDist, 1)
     densityMask = np.sin(min_d * np.pi/2)**2
 
     if sm.imageRef is None:
@@ -466,7 +466,7 @@ def _global_phase_correlation(sm, scanOrStep, meanAbsDiff, densityCutoff, densit
     for k in vecAlign:
         # Simple phase correlation
         cut = sm.imageDensity[k, ...] < densityCutoff
-        min_d = np.minimum(distance_transform_edt(~cut) / 64, 1)
+        min_d = np.minimum(distance_transform(cut) / 64, 1)
         densityMask = np.sin(min_d * np.pi/2)**2
 
         smooth = sm.imageTransform[k,...]*densityMask + (1-densityMask)*intensityMedian

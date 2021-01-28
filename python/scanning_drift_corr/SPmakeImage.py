@@ -2,7 +2,9 @@
 """
 
 import numpy as np
-from scipy.ndimage import gaussian_filter, distance_transform_edt
+from scipy.ndimage import gaussian_filter
+
+from scanning_drift_corr.tools import distance_transform
 
 def SPmakeImage(sMerge, indImage, indLines=None, delta=1e-5):
     """
@@ -61,8 +63,8 @@ def SPmakeImage(sMerge, indImage, indLines=None, delta=1e-5):
 
     # MATLAB bwdist calculates 'the distance between that pixel and the
     # nearest nonzero pixel', scipy version is more conventional, which is
-    # the reverse, hence the negation
-    dt = distance_transform_edt(~bound)
+    # the reverse, use a wrapper to handle this
+    dt = distance_transform(bound)
     dtmin = np.minimum(dt/sMerge.edgeWidth, 1)
     sMerge.imageDensity[indImage, ...] = np.sin(dtmin*np.pi/2)**2
 
