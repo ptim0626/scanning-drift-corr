@@ -57,3 +57,22 @@ def MATLAB_simulated_images_sm(MATLAB_simulated_images):
     sm = sMerge(scanAngles, MATLAB_simulated_images)
 
     return sm
+
+@pytest.fixture
+def small_delta_rectangle():
+    # angle [0,90]
+    rect1 = np.ones((4,10))
+    rect2 = np.ones((4,10))
+    rect1[2,5] = 10
+    rect1[3,8] = 10
+    rect2[1,5] = 10
+    rect2[0,2] = 10
+
+    return rect1, rect2
+
+@pytest.fixture
+def small_delta_rectangle_sm(small_delta_rectangle):
+    scanAngles = (0, 90)
+    sm = sMerge(scanAngles, small_delta_rectangle)
+
+    return sm

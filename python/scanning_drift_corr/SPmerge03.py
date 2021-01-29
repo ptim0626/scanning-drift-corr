@@ -150,7 +150,7 @@ def SPmerge03(sm):
     # Downsample outputs if required
     if flagDownsampleOutput and (upsampleFactor>1):
         # Fourier subsets for downsampling
-        # TODO handle odd number pixel images
+        # imageSize never odd so no need to handle
         xsz = sm.imageSize[0]
         ysz = sm.imageSize[1]
         xszMid = int(xsz/2)

@@ -33,7 +33,7 @@ class sMerge:
 
         # save raw data to scanLines
         if self.isStack:
-            # TO DO: ensure navigation index first
+            # TODO: ensure navigation index first
             self.scanLines = images
         else:
             self.scanLines = np.empty((self.numImages, *self.img_shape))
@@ -224,9 +224,9 @@ class sMerge:
 
         # chop off 0 to be consistent with the MATLAB hanningLocal
         N = self.scanLines.shape
-        hanning = np.hanning(N[1] + 2)[1:-1] * np.hanning(N[2] + 2)[1:-1][:, None]
+        hanning = np.hanning(N[2] + 2)[1:-1] * np.hanning(N[1] + 2)[1:-1][:, None]
         padw = self.imageSize - np.asarray(N)[1:]
-        shifts= np.floor(padw / 2 + 0.5).astype(int)
+        shifts = np.floor(padw / 2 + 0.5).astype(int)
         padded = np.pad(hanning, ((0, padw[0]), (0, padw[1])),
                         mode='constant', constant_values=0)
         w2 = np.roll(padded, shifts, axis=(0,1))

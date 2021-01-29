@@ -27,6 +27,5 @@ A Jupyter notebook `example.ipynb` is also available.
 
 ## TODO
 - [ ] refactoring of the codes (currently everything flying around)
-- [ ] handle odd number pixels
 - [ ] handle rectangular image
 

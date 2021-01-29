@@ -106,4 +106,26 @@ def test_result_ignore_edge_4_images_simulated_data(MATLAB_simulated_images):
     assert np.isclose(imgden3[bd:-bd, bd:-bd], imgden3_m[bd:-bd, bd:-bd]).all()
     assert np.isclose(scanOr, scanOr_m).all()
 
+def test_result_small_delta_rectangle(small_delta_rectangle):
+    im1, im2 = small_delta_rectangle
+    scanAngles = (10, 100)
 
+    sm = SPmerge01linear(scanAngles, im1, im2)
+    imgtrans0 = sm.imageTransform[0, ...]
+    imgtrans1 = sm.imageTransform[1, ...]
+    imgden0 = sm.imageDensity[0, ...]
+    imgden1 = sm.imageDensity[1, ...]
+    scanOr = sm.scanOr
+
+    mstruct = sio.loadmat('matlab_result/SPmerge01linear_result_small_delta_rectangle.mat')
+    imgtrans0_m = mstruct['it1']
+    imgtrans1_m = mstruct['it2']
+    imgden0_m = mstruct['id1']
+    imgden1_m = mstruct['id2']
+    scanOr_m = mstruct['scOr'].T - 1
+
+    assert np.isclose(imgtrans0, imgtrans0_m).all()
+    assert np.isclose(imgtrans1, imgtrans1_m, atol=1e-4).all() # weird!
+    assert np.isclose(imgden0, imgden0_m).all()
+    assert np.isclose(imgden1, imgden1_m).all()
+    assert np.isclose(scanOr, scanOr_m).all()
