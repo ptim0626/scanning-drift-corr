@@ -34,12 +34,12 @@ flagGlobalShift = 1*0;   % If this flag is true, a global phase correlation
 %                        performed each primary iteration (This is meant to
 %                        fix unit cell shifts and similar artifacts).
 %                        This option is highly recommended!
-flagGlobalShiftIncrease = 0; % If this option is true, the global scoring 
+flagGlobalShiftIncrease = 0; % If this option is true, the global scoring
 %                              function is allowed to increase after global
 %                              phase correlation step. (false is more stable)
 minGlobalShift = 1;    % Global shifts only if shifts > this value (pixels)
 densityDist = mean([size(sMerge.scanLines,1) ...
-    size(sMerge.scanLines,2)])/32; % density mask edge threshold 
+    size(sMerge.scanLines,2)])/32; % density mask edge threshold
 % To generate a moving average along the scanline origins
 % (make scanline steps more linear), use the settings below:
 originWindowAverage = 1;  % Window sigma in px for smoothing scanline origins.
@@ -59,7 +59,7 @@ if nargin == 1
     refineMaxSteps = 32;
     initialRefineSteps = 4*0;
 elseif nargin == 2
-    initialRefineSteps = 4*0;    
+    initialRefineSteps = 4*0;
 end
 
 
@@ -88,17 +88,17 @@ end
 if (~isfield(sMerge,'scanActive') || resetInitialAlignment == true) ...
         || ((initialRefineSteps > 0) && (nargin == 3))
     for aInit = 1:initialRefineSteps
-        
+
         sMerge.scanActive = false(size(sMerge.scanLines,1),...
             sMerge.numImages);
-        
+
         % Get starting scanlines for initial alignment
         indStart = zeros(sMerge.numImages,1);
         for a0 = 1:sMerge.numImages
             % Scan line direction and origins
             v = [-sMerge.scanDir(a0,2) sMerge.scanDir(a0,1)];
             or = sMerge.scanOr(:,1:2,a0);
-            
+
             % Determine closest scanline origin from point-line distance
             c = -sum(sMerge.ref.*v);
             dist = abs(v(1)*or(:,1)+v(2)*or(:,2) + c) / norm(v);
@@ -106,7 +106,7 @@ if (~isfield(sMerge,'scanActive') || resetInitialAlignment == true) ...
             sub = dist < distStart;
             sMerge.scanActive(sub,a0) = true;
         end
-        
+
         % Rough initial alignment of scanline origins, to nearest pixel
         inds = 1:size(sMerge.scanLines,1);
         dxy = [0 0;
@@ -119,7 +119,7 @@ if (~isfield(sMerge,'scanActive') || resetInitialAlignment == true) ...
             % Determine which image to align to, based on orthogonality
             [~,indAlign] = min(abs(sum(repmat(sMerge.scanDir(a0,:), ...
                 [sMerge.numImages 1]).* sMerge.scanDir,2)));
-            
+
             % Generate alignment image
             if ~isfield(sMerge,'imageRef')
                 sMerge = SPmakeImage(sMerge,indAlign,sMerge.scanActive(:,indAlign));
@@ -128,20 +128,20 @@ if (~isfield(sMerge,'scanActive') || resetInitialAlignment == true) ...
             else
                 imageAlign = sMerge.imageRef;
             end
-            
+
             %                 sub = sMerge.imageDensity(:,:,indAlign)>densityCutoff;
             %         imageAlign = sMerge.imageTransform(:,:,indAlign).*sub ...
             %             + (1-sub)*intensityMedian;
-            
-            
+
+
             %         figure(111)
             %         clf
             %         imagesc(imageAlign)
             %         axis equal off
             %         colormap(violetFire)
             %         drawnow
-            
-            
+
+
             % align origins
             xyStep = mean(sMerge.scanOr(2:end,:,a0)-sMerge.scanOr(1:(end-1),:,a0),1);
             indAligned = false(size(sMerge.scanLines,1),1);
@@ -151,28 +151,31 @@ if (~isfield(sMerge,'scanActive') || resetInitialAlignment == true) ...
                 v = bwmorph(indAligned,'dilate',1);
                 v(indAligned) = false;
                 indMove = inds(v);
-                
+
                 % currently active scanlines
                 indsActive = inds(indAligned);
-                
+
 % %                 % If needed, get linear estimates
 % %                 if weightInitialLinear > 0
 % %                     A = [ones(length(indsActive),1) indsActive'];
 % %                     beta = A \ sMerge.scanOr(indAligned,1:2,a0);
 % %                 end
-                
+
                 % Align selected scanlines
                 for a1 = 1:length(indMove)
                     % determine starting point from neighboring scanline
                     [~,minDistInd] = min(abs(indMove(a1)-indsActive));
-                    
+
                     % Step perpendicular to scanDir
                     xyOr = sMerge.scanOr(indsActive(minDistInd),1:2,a0) ...
                         + xyStep * (indMove(a1)-indsActive(minDistInd));
-                    
+
                     % Refine score by moving origin of this scanline
-                    xInd = round(xyOr(1) + inds*sMerge.scanDir(a0,1));
-                    yInd = round(xyOr(2) + inds*sMerge.scanDir(a0,2));
+                    %   ============ my change ============
+                    indsN = 1:size(sMerge.scanLines,2);
+                    xInd = round(xyOr(1) + indsN*sMerge.scanDir(a0,1));
+                    yInd = round(xyOr(2) + indsN*sMerge.scanDir(a0,2));
+                    %   ============ my change ============
                     %                     % Prevent pixels from leaving image boundaries
                     %                     xInd = max(min(xInd,sMerge.imageSize(1)-1),1);
                     %                     yInd = max(min(yInd,sMerge.imageSize(2)-1),1);
@@ -186,7 +189,7 @@ if (~isfield(sMerge,'scanActive') || resetInitialAlignment == true) ...
                         + dxy(ind,1:2) * initialShiftMaximum;
                     indAligned(indMove(a1)) = true;
                 end
-                
+
                 % Report progess if flag is set to true
                 if flagReportProgress == true
                     comp = sum(indAligned) / numel(indAligned);
@@ -200,7 +203,7 @@ if (~isfield(sMerge,'scanActive') || resetInitialAlignment == true) ...
                 end
             end
         end
-        
+
         % If required, compute moving average of origins using KDE.
         if originInitialAverage > 0  % || originLinearFraction > 0
             % Linear fit to scanlines
@@ -265,19 +268,19 @@ indsLoop = 1:sMerge.numImages;
 while alignStep <= refineMaxSteps
     % Reset pixels moved count
     pixelsMoved = 0;
-    
+
     % Compute all images from current origins
     for a0 = indsLoop
         sMerge = SPmakeImage(sMerge,a0);
     end
-    
+
     % Get mean absolute difference as a fraction of the mean scanline intensity.
     Idiff = mean(abs(sMerge.imageTransform ...
         - repmat(mean(sMerge.imageTransform,3),[1 1 sMerge.numImages])),3);
     meanAbsDiff = mean(Idiff(min(sMerge.imageDensity,[],3)>densityCutoff)) ...
         / mean(abs(sMerge.scanLines(:)));
     sMerge.stats(alignStep,1:2) = [alignStep-1 meanAbsDiff];
-    
+
     % If required, check for global alignment of images
     if flagGlobalShift == true
         if flagReportProgress == true
@@ -285,12 +288,12 @@ while alignStep <= refineMaxSteps
             fprintf([reverseStr, msg]);
             reverseStr = repmat(sprintf('\b'),1,length(msg));
         end
-        
+
         % save current origins, step size and score
         scanOrCurrent = sMerge.scanOr;
         scanOrStepCurrent = scanOrStep;
         meanAbsDiffCurrent = meanAbsDiff;
-        
+
         % Align to windowed image 1 or imageRef
         intensityMedian = median(sMerge.scanLines(:));
         densityMask = sin((pi/2)*min(bwdist( ...
@@ -304,7 +307,7 @@ while alignStep <= refineMaxSteps
                 + (1-densityMask)*intensityMedian);
             vecAlign = 1:sMerge.numImages;
         end
-        
+
         % Align datasets 2 and higher to dataset 1, or align all images to imageRef
         for a0 = vecAlign
             % Simple phase correlation
@@ -313,24 +316,24 @@ while alignStep <= refineMaxSteps
             imageFFT2 = conj(fft2(sMerge.imageTransform(:,:,a0).*densityMask ...
                 + (1-densityMask)*intensityMedian));
             phaseCorr = abs(ifft2(exp(1i*angle(imageFFT1.*imageFFT2))));
-            
+
             % Get peak maximum
             [~,ind] = max(phaseCorr(:));
             [xInd,yInd] = ind2sub(sMerge.imageSize,ind);
-            
+
             % Compute relative shifts.  Note that since matrix indices
             % start at 1, must be shifted by -1.
             dx = mod(xInd-1+sMerge.imageSize(1)/2,...
                 sMerge.imageSize(1))-sMerge.imageSize(1)/2;
             dy = mod(yInd-1+sMerge.imageSize(2)/2,...
                 sMerge.imageSize(2))-sMerge.imageSize(2)/2;
-            
+
             % Only apply shift if it is larger than 2 pixels
             if abs(dx) + abs(dy) > minGlobalShift
                 % apply global origin shift, if possible
                 xNew = sMerge.scanOr(:,1,a0) + dx;
                 yNew = sMerge.scanOr(:,2,a0) + dy;
-                
+
                 % Verify shifts are within image boundaries
                 if min(xNew) >= 1 ...
                         && max(xNew) < sMerge.imageSize(1)-1 ...
@@ -338,23 +341,23 @@ while alignStep <= refineMaxSteps
                         && max(yNew) < sMerge.imageSize(2)-1
                     sMerge.scanOr(:,1,a0) = xNew;
                     sMerge.scanOr(:,2,a0) = yNew;
-                    
+
                     % Recompute image with new origins
                     sMerge = SPmakeImage(sMerge,a0);
-                    
+
                     % Reset search values for this image
                     scanOrStep(:,a0) = refineInitialStep;
                 end
             end
         end
-        
+
         if flagGlobalShiftIncrease == false
             % Verify global shift did not make mean abs. diff. increase.
             Idiff = mean(abs(sMerge.imageTransform ...
                 - repmat(mean(sMerge.imageTransform,3),[1 1 sMerge.numImages])),3);
             meanAbsDiffNew = mean(Idiff(min(sMerge.imageDensity,[],3)>densityCutoff)) ...
                 / mean(abs(sMerge.scanLines(:)));
-            
+
             if meanAbsDiffNew < meanAbsDiffCurrent
                 % If global shift decreased mean absolute different, keep.
                 sMerge.stats(alignStep,1:2) = [alignStep-1 meanAbsDiff];
@@ -364,10 +367,10 @@ while alignStep <= refineMaxSteps
                 sMerge.scanOr = scanOrCurrent;
                 scanOrStep = scanOrStepCurrent;
             end
-            
+
         end
     end
-    
+
     % Refine each image in turn, against the sum of all other images
     for a0 = indsLoop
         % Generate alignment image, mean of all other scanline datasets,
@@ -384,20 +387,20 @@ while alignStep <= refineMaxSteps
         else
             imageAlign = sMerge.imageRef;
         end
-        
+
         % If ordering is used as a condition, determine parametric positions
         if flagPointOrder == true
             % Use vector perpendicular to scan direction (negative 90 deg)
             n = [sMerge.scanDir(a0,2) -sMerge.scanDir(a0,1)];
             vParam = n(1)*sMerge.scanOr(:,1,a0) + n(2)*sMerge.scanOr(:,2,a0);
         end
-        
+
         % Loop through each scanline and perform alignment
         for a1 = 1:size(sMerge.scanLines,1)
             % Refine score by moving the origin of this scanline
             orTest = repmat(sMerge.scanOr(a1,1:2,a0),[size(dxy,1) 1]) ...
                 + dxy * scanOrStep(a1,a0);
-            
+
             % If required, force ordering of points
             if flagPointOrder == true
                 vTest = n(1)*orTest(:,1) + n(2)*orTest(:,2);
@@ -416,7 +419,7 @@ while alignStep <= refineMaxSteps
                     end
                 end
             end
-            
+
             % Loop through origin tests
             for a2 = 1:size(dxy,1)
                 xInd = orTest(a2,1) + inds*sMerge.scanDir(a0,1);
@@ -441,7 +444,7 @@ while alignStep <= refineMaxSteps
                     + norm(orTest(ind,:)-sMerge.scanOr(a1,1:2,a0));
                 sMerge.scanOr(a1,1:2,a0) = orTest(ind,:);
             end
-            
+
             % Report progress if requested
             if flagReportProgress == true && mod(a1,16) == 0
                 comp = (a1 / size(sMerge.scanLines,1) ...
@@ -458,7 +461,7 @@ while alignStep <= refineMaxSteps
             end
         end
     end
-    
+
     % If required, compute moving average of origins using KDE.
     if originWindowAverage > 0 % || originLinearFraction > 0
         % Linear fit to scanlines
@@ -478,7 +481,7 @@ while alignStep <= refineMaxSteps
         %             + scanOrLinear;
         sMerge.scanOr = sMerge.scanOr + scanOrLinear;
     end
-    
+
     % If pixels moved is below threshold, halt refinement
     if (pixelsMoved/sMerge.numImages) < pixelsMovedThreshold
         alignStep = refineMaxSteps + 1;
@@ -509,8 +512,8 @@ if flagPlot == 1
     mask = dens>0.5;
     imagePlot = imagePlot - mean(imagePlot(mask));
     imagePlot = imagePlot / sqrt(mean(imagePlot(mask).^2));
-    
-    
+
+
     % Plot results, image with scanline origins overlaid
     figure(1)
     clf
@@ -534,7 +537,7 @@ if flagPlot == 1
     colormap(gray(256))
     set(gca,'position',[0 0 1 1])
     caxis([-3 3])  % units of image RMS
-    
+
     % Get final stats
     % Idiff = mean(abs(sMerge.imageTransform ...
     %     - repmat(mean(sMerge.imageTransform,3),[1 1 sMerge.numImages])),3);
@@ -546,7 +549,7 @@ if flagPlot == 1
     meanAbsDiff = mean(Idiff(min(sMerge.imageDensity,[],3)>densityCutoff)) ...
         / mean(abs(sMerge.scanLines(:)));
     sMerge.stats(alignStep,1:2) = [alignStep-1 meanAbsDiff];
-    
+
     % Plot statistics
     if size(sMerge.stats,1) > 1
         figure(2)

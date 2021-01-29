@@ -176,7 +176,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
                 vParam = nn[0]*sm.scanOr[k, 0, :] + nn[1]*sm.scanOr[k, 1, :]
 
             # Loop through each scanline and perform alignment
-            for m in range(sm.scanLines.shape[1]):
+            for m in range(sm.nr):
                 # Refine score by moving the origin of this scanline
                 orTest = sm.scanOr[k, :, m][:, None] + dxy*scanOrStep[k, m]
 
@@ -187,7 +187,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
                     if m == 0:
                         # no lower bound?
                         vBound = np.array([-np.inf, vParam[m+1]])
-                    elif m == sm.scanLines.shape[1]-1:
+                    elif m == sm.nr-1:
                         # no upper bound?
                         vBound = np.array([vParam[m-1], np.inf])
                     else:
@@ -296,10 +296,9 @@ def _get_kernel_moving_origins(sm, originAverage):
     KDEorigin = np.exp(-v**2/(2*originAverage**2))
 
     KDEnorm = 1 / convolve(np.ones(sm.scanOr.shape), KDEorigin[:, None, None].T, 'same')
-    sz = sm.scanLines.shape[1]
 
     # need to offset 1 here??
-    basisOr = np.vstack([np.zeros(sz), np.arange(0, sz)]) + 1
+    basisOr = np.vstack([np.zeros(sm.nr), np.arange(0, sm.nr)]) + 1
 
     scanOrLinear = np.zeros(sm.scanOr.shape)
 
@@ -329,13 +328,12 @@ def _initial_refinement(sm, initialRefineSteps, distStart,
                         originInitialAverage, KDEorigin, KDEnorm, basisOr, scanOrLinear):
 
     for _ in range(initialRefineSteps):
-        sz = sm.scanLines.shape[1]
-        sm.scanActive = np.zeros((sm.numImages, sz), dtype=bool)
+        sm.scanActive = np.zeros((sm.numImages, sm.nr), dtype=bool)
 
         indStart = _get_starting_scanline(sm, distStart)
 
         # Rough initial alignment of scanline origins, to nearest pixel
-        inds = np.arange(sz)
+        inds = np.arange(sm.nr)
         dxy = np.array([[0,1,-1,0,0], [0,0,0,1,-1]])
         score = np.zeros(dxy.shape[1])
         for k in range(sm.numImages):
@@ -354,9 +352,9 @@ def _initial_refinement(sm, initialRefineSteps, distStart,
 
             # align origins
             dOr = sm.scanOr[k, :, 1:] - sm.scanOr[k, :, :-1]
-            sz = sm.scanLines.shape[1]
             xyStep = np.mean(dOr, axis=1)
-            indAligned = np.zeros(sz, dtype=bool)
+            
+            indAligned = np.zeros(sm.nr, dtype=bool)
             indAligned[int(indStart[k])] = True
 
 
@@ -400,6 +398,7 @@ def _align_selected_scanline(sm, k, inds, indAligned, xyStep, dxy, score, imageA
     # currently active scanlines
     indsActive = inds[indAligned]
 
+    t = np.arange(1, sm.nc+1)
     for m in range(indMove.size):
         # determine starting point from neighboring scanline
         minDistInd = np.argmin(np.abs(indMove[m] - indsActive))
@@ -409,8 +408,8 @@ def _align_selected_scanline(sm, k, inds, indAligned, xyStep, dxy, score, imageA
         xyOr = sm.scanOr[k, :, indMin] + xyStep * (indMove[m] - indMin)
 
         # Refine score by moving origin of this scanline
-        xInd = np.floor(xyOr[0] + 1 + (inds+1)*sm.scanDir[k, 0] + 0.5).astype(int) - 1
-        yInd = np.floor(xyOr[1] + 1 + (inds+1)*sm.scanDir[k, 1] + 0.5).astype(int) - 1
+        xInd = np.floor(xyOr[0] + t*sm.scanDir[k, 0] + 0.5).astype(int)
+        yInd = np.floor(xyOr[1] + t*sm.scanDir[k, 1] + 0.5).astype(int)
 
         # Prevent pixels from leaving image boundaries (here mainly for strange image?)
         # I think better to check?
@@ -427,7 +426,7 @@ def _align_selected_scanline(sm, k, inds, indAligned, xyStep, dxy, score, imageA
             nyInd = np.clip(nyInd, 0, sm.imageSize[1]-2).ravel()
             rInd = np.ravel_multi_index((nxInd, nyInd), sm.imageSize)
 
-            # scanLines indices switched
+            # scanLines indices switched to match row
             score[n] = np.abs(imageAlign.ravel()[rInd] - sm.scanLines[k, indMove[m], :]).sum()
 
         ind = np.argmin(score)
