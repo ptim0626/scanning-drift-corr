@@ -1,42 +1,82 @@
 """The file contains the SPmerge03 function
 """
 
+import warnings
+
 import numpy as np
 import matplotlib.pyplot as plt
 
-from scanning_drift_corr.tools import distance_transform
+from scanning_drift_corr.tools import distance_transform, bilinear_interpolation
 
 
-def SPmerge03(sm):
-    # return imageFinal, signalArray, densityArray
+def SPmerge03(sm, **kwargs):
+    """ Final scanning probe merge script. This script uses KDE and Fourier
+    filtering to produce a combined image from all component scans. The 
+    Fourier weighting used (if flag is enabled) is cos(theta)^2, where
+    theta is the angle from the scan direction. This essentially zeros out
+    the slow scan direction, while weighting the fast scan direction at 100%.
+   
+    Parameters
+    ----------
+    sm : sMerge object
+        the sMerge object contains all the data.
+    KDEsigma : float, optional
+        Gaussian sigma value used in kernel density estimator (pixels)
+    upsampleFactor : int, optional
+        upsampling factor used in image generation, a large upsampleFactor 
+        can be very slow
+    sigmaDensity : float, optional
+        smoothing sigma value for density estimation (pixels)
+    boundary : int
+        thickness of windowed boundary (pixels)
+    flagFourierWeighting : bool
+        set to true to enable cos(theta)^2 Fourier weights
+    flagDownsampleOutput : bool
+        set to true to downsample output to the original resolution, as 
+        opposed to that of upsampleFactor        
+    flagPlot : bool
+        to plot the final image of not
+    
+    Returns
+    -------
+    imageFinal : ndarray
+        final combined image.
+    signalArray : ndarray
+        image stack containing estimated image from each scan, with axis 0
+        the navigation index
+    densityArray : ndarray
+        image stack containing estimated density of each scan, with axis 0
+        the navigation index
+    """
 
-    flagPlot = True
+    # ignore unknown input arguments
+    _args_list = ['KDEsigma', 'upsampleFactor', 'sigmaDensity', 'boundary', 
+                  'flagFourierWeighting', 'flagDownsampleOutput', 'flagPlot']
+    for key in kwargs.keys():
+        if key not in _args_list:
+            msg = "The argument '{}' is not recognised, and it is ignored."
+            warnings.warn(msg.format(key), RuntimeWarning)
 
-    # Gaussian sigma value used in kernel density estimator (pixels)
-    KDEsigma = 0.5 + 1
-
-    # upsampling factor used in image generation (integer)
-    # Using a large upsampleFactor can be very slow.
-    upsampleFactor = 2
-
-    # Smoothing sigma value for density estimation (pixels)
-    sigmaDensity = 8/2
-
-    # Thickness of windowed boundary (pixels)
-    boundary = 8
-
-    # Set to true to enable cos(theta)^2 Fourier weights
-    flagFourierWeighting = True
-
-    # Set to true to downsample output to the original
-    # resolution, as opposed to that of "upsampleFactor."
-    flagDownsampleOutput = True
+    # set default values or from input arguments
+    KDEsigma = kwargs.get('KDEsigma', 1.5)
+    upsampleFactor = kwargs.get('upsampleFactor', 2)
+    sigmaDensity = kwargs.get('sigmaDensity', 8/2)
+    boundary = kwargs.get('boundary', 8)
+    flagFourierWeighting = kwargs.get('flagFourierWeighting', True)
+    flagDownsampleOutput = kwargs.get('flagDownsampleOutput', True)
+    flagPlot = kwargs.get('flagPlot', True)
 
     # Initialize arrays
     upsampledSize = sm.imageSize*upsampleFactor
     signalArray = np.zeros((sm.numImages, *upsampledSize));
     densityArray = np.zeros((sm.numImages, *upsampledSize));
     imageFinal = np.zeros(upsampledSize)
+
+    for k in range(sm.numImages):
+        # Loop over scans and create images / densities
+        ret = bilinear_interpolation(sm, k, upsampleFactor=upsampleFactor)
+        signalArray[k, ...] = ret[0]
+        densityArray[k, ...] = ret[1]
 
     # kernel generation in upsampled coordinates
     nr, nc = sm.imageSize
@@ -46,44 +86,6 @@ def SPmerge03(sm):
     smoothDensityEstimate = np.fft.fft2(np.exp(-x**2/(2*sigmaDensity**2)) *
                                         np.exp(-y**2/(2*sigmaDensity**2)) /
                                         (2*np.pi*sigmaDensity**2*upsampleFactor**2))
-
-    # Loop over scans and create images / densities
-    t = np.arange(1, sm.nc+1)
-    for k in range(sm.numImages):
-        # Expand coordinates
-        x0 = sm.scanOr[k, 0, :][:,None]
-        y0 = sm.scanOr[k, 1, :][:,None]
-        # plus here to shift in Python's coordinate system
-        xInd = x0*upsampleFactor + (upsampleFactor-1)/2 + (t*sm.scanDir[k, 0])*upsampleFactor
-        yInd = y0*upsampleFactor + (upsampleFactor-1)/2 + (t*sm.scanDir[k, 1])*upsampleFactor
-
-        # Prevent pixels from leaving image boundaries
-        xInd = np.clip(xInd, 0, (sm.imageSize[0]*upsampleFactor)-2).ravel()
-        yInd = np.clip(yInd, 0, (sm.imageSize[1]*upsampleFactor)-2).ravel()
-
-        imgsize = sm.imageSize*upsampleFactor
-
-        # Create bilinear coordinates
-        xIndF = np.floor(xInd).astype(int)
-        yIndF = np.floor(yInd).astype(int)
-        xAll = np.vstack([xIndF, xIndF+1, xIndF, xIndF+1])
-        yAll = np.vstack([yIndF, yIndF, yIndF+1, yIndF+1])
-        dx = xInd - xIndF
-        dy = yInd - yIndF
-        w = np.vstack([(1-dx)*(1-dy), dx*(1-dy), (1-dx)*dy, dx*dy])
-        indAll = np.ravel_multi_index((xAll, yAll), imgsize)
-
-        # weigh the raw image for interpolation
-        image = sm.scanLines[k, ...]
-        wsig = w * image.ravel()
-        wcount = w
-
-        # Generate image and density
-        signalArray[k, ...] = np.bincount(indAll.ravel(), weights=wsig.ravel(),
-                                          minlength=imgsize.prod()).reshape(imgsize)
-
-        densityArray[k, ...] = np.bincount(indAll.ravel(), weights=wcount.ravel(),
-                                           minlength=imgsize.prod()).reshape(imgsize)
 
     # for refactoring later, sepearate the for loop
     # Apply KDE to both arrays

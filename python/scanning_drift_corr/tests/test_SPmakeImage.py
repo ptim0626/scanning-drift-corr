@@ -3,7 +3,10 @@ import scipy.io as sio
 import pytest
 
 from scanning_drift_corr.sMerge import sMerge
-from scanning_drift_corr.SPmakeImage import SPmakeImage, _bilinear_interpolation, _apply_KDE
+from scanning_drift_corr.SPmakeImage import SPmakeImage, _apply_KDE
+
+from scanning_drift_corr.tools import bilinear_interpolation
+
 
 @pytest.mark.parametrize('angles, mfile',
                          [((10, 100), 'SPmakeimage_result_10_100_small_delta.mat'),
@@ -52,8 +55,8 @@ def test_after_bilinear_interpolation_angle_30_120(small_delta_matrix):
 
     # perform bilinear interpolation
     indLines = np.ones(sm.nr, dtype=bool)
-    sig0, count0 = _bilinear_interpolation(sm, 0, indLines)
-    sig1, count1 = _bilinear_interpolation(sm, 1, indLines)
+    sig0, count0 = bilinear_interpolation(sm, 0, indLines)
+    sig1, count1 = bilinear_interpolation(sm, 1, indLines)
 
     # MATLAB results
     mstruct = sio.loadmat('matlab_result/SPmakeimage_rotated_sig_count_ang30_small_delta.mat')
@@ -79,9 +82,9 @@ def test_after_bilinear_interpolation_KDE_angle_30_120(small_delta_matrix):
 
     # perform bilinear interpolation and apply KDE
     indLines = np.ones(sm.nr, dtype=bool)
-    sig0, count0 = _bilinear_interpolation(sm, 0, indLines)
+    sig0, count0 = bilinear_interpolation(sm, 0, indLines)
     sig0, count0 = _apply_KDE(sm, sig0, count0)
-    sig1, count1 = _bilinear_interpolation(sm, 1, indLines)
+    sig1, count1 = bilinear_interpolation(sm, 1, indLines)
     sig1, count1 = _apply_KDE(sm, sig1, count1)
 
     # MATLAB results
@@ -110,10 +113,10 @@ def test_sub_angle_30_120(small_delta_matrix):
 
     # perform bilinear interpolation
     indLines = np.ones(sm.nr, dtype=bool)
-    sig0, count0 = _bilinear_interpolation(sm, 0, indLines)
+    sig0, count0 = bilinear_interpolation(sm, 0, indLines)
     sig0, count0 = _apply_KDE(sm, sig0, count0)
     sub0 = count0 > 0
-    sig1, count1 = _bilinear_interpolation(sm, 1, indLines)
+    sig1, count1 = bilinear_interpolation(sm, 1, indLines)
     sig1, count1 = _apply_KDE(sm, sig1, count1)
     sub1 = count1 > 0
 
@@ -141,8 +144,8 @@ def test_after_bilinear_interpolation_simulated_data(angles, mfile, MATLAB_simul
 
     # perform bilinear interpolation and apply KDE
     indLines = np.ones(sm.nr, dtype=bool)
-    sig0, count0 = _bilinear_interpolation(sm, 0, indLines)
-    sig1, count1 = _bilinear_interpolation(sm, 1, indLines)
+    sig0, count0 = bilinear_interpolation(sm, 0, indLines)
+    sig1, count1 = bilinear_interpolation(sm, 1, indLines)
 
     # MATLAB results
     m1, m2 = mfile
@@ -173,9 +176,9 @@ def test_after_bilinear_interpolation_KDE_simulated_data(angles, mfile, MATLAB_s
 
     # perform bilinear interpolation and apply KDE
     indLines = np.ones(sm.nr, dtype=bool)
-    sig0, count0 = _bilinear_interpolation(sm, 0, indLines)
+    sig0, count0 = bilinear_interpolation(sm, 0, indLines)
     sig0, count0 = _apply_KDE(sm, sig0, count0)
-    sig1, count1 = _bilinear_interpolation(sm, 1, indLines)
+    sig1, count1 = bilinear_interpolation(sm, 1, indLines)
     sig1, count1 = _apply_KDE(sm, sig1, count1)
 
     # MATLAB results
