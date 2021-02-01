@@ -55,7 +55,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
     # If this option is true, the global scoring
     # function is allowed to increase after global
     # phase correlation step. (false is more stable)
-    flagGlobalShiftIncrease = 0
+    flagGlobalShiftIncrease = False
 
     # Global shifts only if shifts > this value (pixels)
     minGlobalShift = 1
