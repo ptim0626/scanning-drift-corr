@@ -1,6 +1,8 @@
 """The file contains the SPmerge02 function
 """
 
+import warnings
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import convolve
@@ -10,80 +12,130 @@ from scanning_drift_corr.SPmakeImage import SPmakeImage
 from scanning_drift_corr.tools import distance_transform
 
 def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
-              only_initial_refinemen=False, flagGlobalShift=True):
+              only_initial_refinemen=False, **kwargs):
+    """
+    
+    Parameters
+    ----------
+    sm : sMerge object
+        the sMerge object contains all the data.
+    refineMaxSteps : int, optional
+        maximum number of refinement steps. Default to None, set to 32.
+    initialRefineSteps : int, optional
+        number of initial alignment steps. Default to None, set to 8 if it has
+        not been performed, or set to 0 if it has been performed
+  
+    
+    densityCutoff : float, optional
+        density cutoff for image boundaries (norm. to 1). Default to 0.8.
+    distStart : float, optional
+        radius of # of scanlines used for initial alignment. Default to
+        mean of raw data divided by 16.
+    initialShiftMaximum : float, optional
+        maximum number of pixels shifted per line for the initial alignment 
+        step. This value should have a maximum of 1, but can be set lower
+        to stabilize initial alignment. Default to 0.25.
+    originInitialAverage : float, optional
+        window sigma in px for initial smoothing. Default to mean of raw data 
+        divided by 16.
+    
+    
+    refineInitialStep : float, optional
+        initial step size for final refinement, in pixels. Default to 0.5.
+    pixelsMovedThreshold : float, optional
+        if number of pixels shifted (per image) is below this value, 
+        refinement will be halted. Default to 0.1.
+    stepSizeReduce : float, optional
+        when a scanline origin does not move, step size will be reduced by 
+        this factor. Default to 0.5.
+    flagPointOrder : bool, optional
+        use this flag to force origins to be ordered, i.e. disallow points 
+        from changing their order. Default to True.
+    originWindowAverage : float, optional
+        window sigma in px for smoothing scanline origins. Set this value to 
+        zero to not use window avg. This window is relative to linear steps.
+        Default to 1.
+        
+        
+    flagGlobalShift : bool, optional
+        if this flag is true, a global phase correlation, performed each 
+        final iteration (This is meant to fix unit cell shifts and similar 
+        artifacts). This option is highly recommended! Default to False.
+    flagGlobalShiftIncrease : bool, optional
+        if this option is true, the global scoring function is allowed to 
+        increase after global phase correlation step. (false is more stable)
+        Default to False.
+    minGlobalShift : float, optional
+        global shifts only if shifts > this value (pixels). Default to 1.
+    densityDist : float, optional
+         density mask edge threshold. To generate a moving average along the 
+         scanline origins (make scanline steps more linear). Default to mean 
+         of raw data divided by 32.
+    
+    
+    
+    flagReportProgress : bool, optional
+        whether to show progress bars or not. Default to True.
+    flagPlot : bool
+        to plot the aligned images of not. Default to True.
+
+
+    """
+    
+    
     # only_initial_refinemen, used for testing only initial refinement
     # should split SPmerge02 into two parts later
 
-    flagPlot = True
+    # ignore unknown input arguments
+    _args_list = ['densityCutoff', 'distStart', 'initialShiftMaximum', 
+                  'originInitialAverage', 'refineInitialStep', 
+                  'pixelsMovedThreshold', 'stepSizeReduce', 'flagPointOrder',
+                  'originWindowAverage', 'flagGlobalShift', 
+                  'flagGlobalShiftIncrease', 'minGlobalShift', 'densityDist',
+                  'flagPlot', 'flagReportProgress']
+    for key in kwargs.keys():
+        if key not in _args_list:
+            msg = "The argument '{}' is not recognised, and it is ignored."
+            warnings.warn(msg.format(key), RuntimeWarning)
 
-    # Set to true to see updates on console.
-    flagReportProgress = True
-
-    # density cutoff for image boundaries (norm. to 1).
-    densityCutoff = 0.8
-
-    # Radius of # of scanlines used for initial alignment.
-    distStart = np.mean(sm.scanLines.shape[1:]) / 16
-
-    # Max number of pixels shifted per line for the
-    # initial alignment step.  This value should
-    # have a maximum of 1, but can be set lower
-    # to stabilize initial alignment.
-    initialShiftMaximum = 1/4
-
-    # Initial step size for main refinement, in pixels.
-    refineInitialStep = 1/2
-
-    # If number of pixels shifted (per image) is
-    # below this value, refinement will be halted.
-    pixelsMovedThreshold = 0.1
-
-    # When a scanline origin does not move,
-    # step size will be reduced by this factor.
-    stepSizeReduce = 1/2
-
-    # Use this flag to force origins to be ordered, i.e.
-    # disallow points from changing their order.
-    flagPointOrder = True
-
-    # If this flag is true, a global phase correlation
-    # performed each primary iteration (This is meant to
-    # fix unit cell shifts and similar artifacts).
-    # This option is highly recommended!
-    flagGlobalShift = False
-
-    # If this option is true, the global scoring
-    # function is allowed to increase after global
-    # phase correlation step. (false is more stable)
-    flagGlobalShiftIncrease = False
-
-    # Global shifts only if shifts > this value (pixels)
-    minGlobalShift = 1
-
-    # density mask edge threshold
-    # To generate a moving average along the scanline origins
-    # (make scanline steps more linear), use the settings below:
-    densityDist =  np.mean(sm.scanLines.shape[1:]) / 32
-
-    # Window sigma in px for smoothing scanline origins.
-    # Set this value to zero to not use window avg.
-    # This window is relative to linear steps.
-    originWindowAverage = 1
-
-    # Window sigma in px for initial smoothing.
-    originInitialAverage = np.mean(sm.scanLines.shape[1:]) / 16
-
-    # Set this value to true to redo initial alignment.
-    resetInitialAlignment = False
-
-    # Default number of iterations if user does not provide values
-    nargs = 3
+    # if number of final alignment not provided, set to 32
     if refineMaxSteps is None:
         refineMaxSteps = 32
-        nargs -= 1
+
+    # if number of initial alignment not provided, set to 8 if the scanActive
+    # attribute is None (i.e. no initial alignment has been performed, so do
+    # it), else skip initial alignment
     if initialRefineSteps is None:
-        initialRefineSteps = 0
-        nargs -= 1
+        if sm.scanActive is None:
+            initialRefineSteps = 8
+        else:
+            initialRefineSteps = 0
+
+
+
+    # set default values or from input arguments
+    meanScanLines = np.mean(sm.scanLines.shape[1:])
+    # for initial alignment
+    densityCutoff = kwargs.get('densityCutoff', 0.8)
+    distStart = kwargs.get('distStart', meanScanLines/16)
+    initialShiftMaximum = kwargs.get('initialShiftMaximum', 1/4)
+    originInitialAverage = kwargs.get('originInitialAverage', meanScanLines/16)
+    # for final alignment
+    refineInitialStep = kwargs.get('refineInitialStep', 1/2)
+    pixelsMovedThreshold = kwargs.get('pixelsMovedThreshold', 0.1)
+    stepSizeReduce = kwargs.get('stepSizeReduce', 1/2)
+    flagPointOrder = kwargs.get('flagPointOrder', True)
+    originWindowAverage = kwargs.get('originWindowAverage', 1)
+    # for global phase correlation
+    flagGlobalShift = kwargs.get('flagGlobalShift', False)
+    flagGlobalShiftIncrease = kwargs.get('flagGlobalShiftIncrease', False)
+    minGlobalShift = kwargs.get('minGlobalShift', 1)
+    densityDist = kwargs.get('densityDist', meanScanLines/32)
+    # general use
+    flagPlot = kwargs.get('flagPlot', True)
+    flagReportProgress = kwargs.get('flagReportProgress', True)
+    
+
 
     # Make kernel for moving average of origins
     if originInitialAverage > 0:
@@ -91,9 +143,8 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
     else:
         KDEorigin, KDEnorm, basisOr, scanOrLinear = 1, None, None, None
 
-    doInitialRefine = ((sm.scanActive is None) | resetInitialAlignment |
-                       (initialRefineSteps > 0)) & (nargs == 3)
-    if doInitialRefine:
+    
+    if initialRefineSteps > 0:
         print('Initial refinement ...')
 
         _initial_refinement(sm, initialRefineSteps, distStart,
