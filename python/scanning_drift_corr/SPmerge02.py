@@ -6,10 +6,10 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import convolve
-from scipy.ndimage.morphology import binary_dilation
 
 from scanning_drift_corr.SPmakeImage import SPmakeImage
 from scanning_drift_corr.SPmerge02_initial import SPmerge02_initial
+from scanning_drift_corr.SPmerge02_final import SPmerge02_final
 from scanning_drift_corr.tools import distance_transform
 
 def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
@@ -158,121 +158,43 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
 
 
     scanOrStep = np.ones((sm.numImages, sm.nr)) * refineInitialStep
-    dxy = np.array([[0,1,-1,0,0], [0,0,0,1,-1]])
     alignStep = 1
     sm.stats = np.zeros((refineMaxSteps+1, 2))
 
 
     while alignStep <= refineMaxSteps:
-        # Reset pixels moved count
-        pixelsMoved = 0
-
+        
+    
         # Compute all images from current origins
         for k in range(sm.numImages):
             # sMerge changed!
             sm = SPmakeImage(sm, k)
-
+    
         # Get mean absolute difference as a fraction of the mean scanline intensity.
         imgT_mean = sm.imageTransform.mean(axis=0)
         Idiff = np.abs(sm.imageTransform - imgT_mean).mean(axis=0)
         dmask = sm.imageDensity.min(axis=0) > densityCutoff
         img_mean = np.abs(sm.scanLines).mean()
         meanAbsDiff = Idiff[dmask].mean() / img_mean
+        
         sm.stats[alignStep-1, :] = np.array([alignStep-1, meanAbsDiff])
-
+    
         # If required, check for global alignment of images
         if flagGlobalShift:
             print('Checking global alignment ...')
             _global_phase_correlation(sm, scanOrStep, meanAbsDiff, densityCutoff,
                                       densityDist,
                                       flagGlobalShiftIncrease,
-                                      minGlobalShift, refineInitialStep, alignStep)
+                                      minGlobalShift, refineInitialStep, alignStep)        
+    
+    
+        pixelsMoved = SPmerge02_final(sm, scanOrStep,
+                                      densityCutoff=densityCutoff,
+                                      stepSizeReduce=stepSizeReduce, 
+                                      flagPointOrder=flagPointOrder)
+        
 
-        # Refine each image in turn, against the sum of all other images
-        for k in range(sm.numImages):
-            # Generate alignment image, mean of all other scanline datasets,
-            # unless user has specified a reference image.
-            if sm.imageRef is None:
-                indsAlign = np.arange(sm.numImages, dtype=int)
-                indsAlign = indsAlign[indsAlign != k]
-
-                dens_cut = sm.imageDensity[indsAlign, ...] > densityCutoff
-                imageAlign = (sm.imageTransform[indsAlign, ...] * dens_cut).sum(axis=0)
-                dens = dens_cut.sum(axis=0)
-                sub = dens > 0
-                imageAlign[sub] = imageAlign[sub] / dens[sub]
-                imageAlign[~sub] = np.mean(imageAlign[sub])
-            else:
-                imageAlign = sm.imageRef
-
-
-            # If ordering is used as a condition, determine parametric positions
-            if flagPointOrder:
-                # Use vector perpendicular to scan direction (negative 90 deg)
-                nn = np.array([sm.scanDir[k, 1], -sm.scanDir[k, 0]])
-                vParam = nn[0]*sm.scanOr[k, 0, :] + nn[1]*sm.scanOr[k, 1, :]
-
-            # Loop through each scanline and perform alignment
-            for m in range(sm.nr):
-                # Refine score by moving the origin of this scanline
-                orTest = sm.scanOr[k, :, m][:, None] + dxy*scanOrStep[k, m]
-
-                # If required, force ordering of points
-                if flagPointOrder:
-                    vTest = nn[0]*orTest[0, :] + nn[1]*orTest[1, :]
-
-                    if m == 0:
-                        # no lower bound?
-                        vBound = np.array([-np.inf, vParam[m+1]])
-                    elif m == sm.nr-1:
-                        # no upper bound?
-                        vBound = np.array([vParam[m-1], np.inf])
-                    else:
-                        vBound = np.array([vParam[m-1], vParam[m+1]])
-
-                    # check out of bound entries?
-                    for p in range(dxy.shape[1]):
-                        if vTest[p] < vBound[0]:
-                            orTest[:, p] += nn*(vBound[0]-vTest[p])
-                        elif vTest[p] > vBound[1]:
-                            orTest[:, p] += nn*(vBound[1]-vTest[p])
-
-                # Loop through origin tests
-                inds = np.arange(1, sm.nc+1)
-                score = np.zeros(dxy.shape[1])
-                for p in range(dxy.shape[1]):
-                    xInd = orTest[0, p] + inds*sm.scanDir[k, 0]
-                    yInd = orTest[1, p] + inds*sm.scanDir[k, 1]
-
-                    # Prevent pixels from leaving image boundaries
-                    xInd = np.clip(xInd, 0, sm.imageSize[0]-2).ravel()
-                    yInd = np.clip(yInd, 0, sm.imageSize[1]-2).ravel()
-
-                    # Bilinear coordinates
-                    xF = np.floor(xInd).astype(int)
-                    yF = np.floor(yInd).astype(int)
-                    dx = xInd - xF
-                    dy = yInd - yF
-
-                    # scanLines indices switched
-                    score[p] = calcScore(imageAlign, xF, yF, dx, dy,
-                                         sm.scanLines[k, m, :])
-
-                # Note that if moving origin does not change score, dxy = (0,0)
-                # will be selected (ind = 0).
-                ind = np.argmin(score)
-                if ind == 0:
-                    # Reduce the step size for this origin
-                    scanOrStep[k, m] *= stepSizeReduce
-                else:
-                    pshift = np.linalg.norm(orTest[:,ind] - sm.scanOr[k, :, m])
-                    pixelsMoved += pshift
-                    # change sMerge!
-                    sm.scanOr[k, :, m] = orTest[:,ind]
-
-                #TODO add progress bar tqdm later
-
-
+        
 
         # If required, compute moving average of origins using KDE.
         if originWindowAverage > 0:
@@ -307,25 +229,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
     return sm
 
 
-def calcScore(image, xF, yF, dx, dy, intMeas):
 
-    imgsz = image.shape
-
-    rind1 = np.ravel_multi_index((xF, yF), imgsz)
-    rind2 = np.ravel_multi_index((xF+1, yF), imgsz)
-    rind3 = np.ravel_multi_index((xF, yF+1), imgsz)
-    rind4 = np.ravel_multi_index((xF+1, yF+1), imgsz)
-
-    int1 = image.ravel()[rind1] * (1-dx) * (1-dy)
-    int2 = image.ravel()[rind2] * dx * (1-dy)
-    int3 = image.ravel()[rind3] * (1-dx) * dy
-    int4 = image.ravel()[rind4] * dx * dy
-
-    imageSample = int1 + int2 + int3 + int4
-
-    score = np.abs(imageSample - intMeas).sum()
-
-    return score
 
 
 def _kernel_on_origin(sm, originAverage):
@@ -357,6 +261,47 @@ def _kernel_on_origin(sm, originAverage):
     # Add linear fit back into to origins, and/or linear weighting
     sm.scanOr += scanOrLinear
 
+
+
+
+def _plot(sm):
+    imagePlot = (sm.imageTransform*sm.imageDensity).sum(axis=0)
+    dens = sm.imageDensity.sum(axis=0)
+    mask = dens > 0
+    imagePlot[mask] /= dens[mask]
+
+    # Scale intensity of image
+    mask = dens > 0.5
+    imagePlot -= imagePlot[mask].mean()
+    imagePlot /= np.sqrt(np.mean(imagePlot[mask]**2))
+
+    fig, ax = plt.subplots()
+    ax.matshow(imagePlot, cmap='gray')
+
+    # RGB colours
+    cvals = np.array([[1, 0, 0],
+                      [0, 0.7, 0],
+                      [0, 0.6, 1],
+                      [1, 0.7, 0],
+                      [1, 0, 1],
+                      [0, 0, 1]])
+
+    # put origins on plot
+    for k in range(sm.numImages):
+        x = sm.scanOr[k, 1, :]
+        y = sm.scanOr[k, 0, :]
+        c = cvals[k % cvals.shape[0], :]
+
+        ax.plot(x, y, marker='.', markersize=12, linestyle='None', color=c)
+
+    # Plot statistics
+    if sm.stats.shape[0] > 1:
+        fig, ax = plt.subplots()
+        ax.plot(sm.stats[:, 0], sm.stats[:, 1]*100, color='red', linewidth=2)
+        ax.set_xlabel('Iteration [Step Number]')
+        ax.set_ylabel('Mean Absolute Difference [%]')
+
+    return
 
 def _global_phase_correlation(sm, scanOrStep, meanAbsDiff, densityCutoff, densityDist,
                               flagGlobalShiftIncrease,
@@ -441,43 +386,3 @@ def _global_phase_correlation(sm, scanOrStep, meanAbsDiff, densityCutoff, densit
                 # and step sizes to previous values.
                 sm.scanOr = scanOrCurrent
                 scanOrStep = scanOrStepCurrent
-
-
-def _plot(sm):
-    imagePlot = (sm.imageTransform*sm.imageDensity).sum(axis=0)
-    dens = sm.imageDensity.sum(axis=0)
-    mask = dens > 0
-    imagePlot[mask] /= dens[mask]
-
-    # Scale intensity of image
-    mask = dens > 0.5
-    imagePlot -= imagePlot[mask].mean()
-    imagePlot /= np.sqrt(np.mean(imagePlot[mask]**2))
-
-    fig, ax = plt.subplots()
-    ax.matshow(imagePlot, cmap='gray')
-
-    # RGB colours
-    cvals = np.array([[1, 0, 0],
-                      [0, 0.7, 0],
-                      [0, 0.6, 1],
-                      [1, 0.7, 0],
-                      [1, 0, 1],
-                      [0, 0, 1]])
-
-    # put origins on plot
-    for k in range(sm.numImages):
-        x = sm.scanOr[k, 1, :]
-        y = sm.scanOr[k, 0, :]
-        c = cvals[k % cvals.shape[0], :]
-
-        ax.plot(x, y, marker='.', markersize=12, linestyle='None', color=c)
-
-    # Plot statistics
-    if sm.stats.shape[0] > 1:
-        fig, ax = plt.subplots()
-        ax.plot(sm.stats[:, 0], sm.stats[:, 1]*100, color='red', linewidth=2)
-        ax.set_xlabel('Iteration [Step Number]')
-        ax.set_ylabel('Mean Absolute Difference [%]')
-
-    return
