@@ -9,12 +9,12 @@ from scipy.signal import convolve
 from scipy.ndimage.morphology import binary_dilation
 
 from scanning_drift_corr.SPmakeImage import SPmakeImage
+from scanning_drift_corr.SPmerge02_initial import SPmerge02_initial
 from scanning_drift_corr.tools import distance_transform
 
-def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
-              only_initial_refinemen=False, **kwargs):
-    """
-    
+def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
+    """Refinement function for scanning probe image
+
     Parameters
     ----------
     sm : sMerge object
@@ -24,56 +24,57 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
     initialRefineSteps : int, optional
         number of initial alignment steps. Default to None, set to 8 if it has
         not been performed, or set to 0 if it has been performed
-  
-    
+
+
     densityCutoff : float, optional
         density cutoff for image boundaries (norm. to 1). Default to 0.8.
     distStart : float, optional
         radius of # of scanlines used for initial alignment. Default to
         mean of raw data divided by 16.
     initialShiftMaximum : float, optional
-        maximum number of pixels shifted per line for the initial alignment 
+        maximum number of pixels shifted per line for the initial alignment
         step. This value should have a maximum of 1, but can be set lower
         to stabilize initial alignment. Default to 0.25.
     originInitialAverage : float, optional
-        window sigma in px for initial smoothing. Default to mean of raw data 
+        window sigma in px for initial smoothing. Default to mean of raw data
         divided by 16.
-    
-    
+
+
     refineInitialStep : float, optional
         initial step size for final refinement, in pixels. Default to 0.5.
     pixelsMovedThreshold : float, optional
-        if number of pixels shifted (per image) is below this value, 
+        if number of pixels shifted (per image) is below this value,
         refinement will be halted. Default to 0.1.
     stepSizeReduce : float, optional
-        when a scanline origin does not move, step size will be reduced by 
+        when a scanline origin does not move, step size will be reduced by
         this factor. Default to 0.5.
     flagPointOrder : bool, optional
-        use this flag to force origins to be ordered, i.e. disallow points 
+        use this flag to force origins to be ordered, i.e. disallow points
         from changing their order. Default to True.
     originWindowAverage : float, optional
-        window sigma in px for smoothing scanline origins. Set this value to 
+        window sigma in px for smoothing scanline origins. Set this value to
         zero to not use window avg. This window is relative to linear steps.
         Default to 1.
-        
-        
+
+
     flagGlobalShift : bool, optional
-        if this flag is true, a global phase correlation, performed each 
-        final iteration (This is meant to fix unit cell shifts and similar 
+        if this flag is true, a global phase correlation, performed each
+        final iteration (This is meant to fix unit cell shifts and similar
         artifacts). This option is highly recommended! Default to False.
     flagGlobalShiftIncrease : bool, optional
-        if this option is true, the global scoring function is allowed to 
+        if this option is true, the global scoring function is allowed to
         increase after global phase correlation step. (false is more stable)
         Default to False.
     minGlobalShift : float, optional
         global shifts only if shifts > this value (pixels). Default to 1.
     densityDist : float, optional
-         density mask edge threshold. To generate a moving average along the 
-         scanline origins (make scanline steps more linear). Default to mean 
+         density mask edge threshold. To generate a moving average along the
+         scanline origins (make scanline steps more linear). Default to mean
          of raw data divided by 32.
-    
-    
-    
+
+
+    flagRemakeImage : bool, optional
+        whether to recompute the image. Default to True.
     flagReportProgress : bool, optional
         whether to show progress bars or not. Default to True.
     flagPlot : bool
@@ -81,18 +82,14 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
 
 
     """
-    
-    
-    # only_initial_refinemen, used for testing only initial refinement
-    # should split SPmerge02 into two parts later
 
     # ignore unknown input arguments
-    _args_list = ['densityCutoff', 'distStart', 'initialShiftMaximum', 
-                  'originInitialAverage', 'refineInitialStep', 
+    _args_list = ['densityCutoff', 'distStart', 'initialShiftMaximum',
+                  'originInitialAverage', 'refineInitialStep',
                   'pixelsMovedThreshold', 'stepSizeReduce', 'flagPointOrder',
-                  'originWindowAverage', 'flagGlobalShift', 
+                  'originWindowAverage', 'flagGlobalShift',
                   'flagGlobalShiftIncrease', 'minGlobalShift', 'densityDist',
-                  'flagPlot', 'flagReportProgress']
+                  'flagRemakeImage', 'flagPlot', 'flagReportProgress']
     for key in kwargs.keys():
         if key not in _args_list:
             msg = "The argument '{}' is not recognised, and it is ignored."
@@ -110,7 +107,6 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
             initialRefineSteps = 8
         else:
             initialRefineSteps = 0
-
 
 
     # set default values or from input arguments
@@ -132,40 +128,30 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
     minGlobalShift = kwargs.get('minGlobalShift', 1)
     densityDist = kwargs.get('densityDist', meanScanLines/32)
     # general use
+    flagRemakeImage = kwargs.get('flagRemakeImage', True)
     flagPlot = kwargs.get('flagPlot', True)
     flagReportProgress = kwargs.get('flagReportProgress', True)
-    
 
 
-    # Make kernel for moving average of origins
-    if originInitialAverage > 0:
-        KDEorigin, KDEnorm, basisOr, scanOrLinear = _get_kernel_moving_origins(sm, originInitialAverage)
-    else:
-        KDEorigin, KDEnorm, basisOr, scanOrLinear = 1, None, None, None
-
-    
+    # if required, perform initial alignment
     if initialRefineSteps > 0:
         print('Initial refinement ...')
 
-        _initial_refinement(sm, initialRefineSteps, distStart,
-                            densityCutoff, initialShiftMaximum,
-                            originInitialAverage, KDEorigin, KDEnorm, basisOr, scanOrLinear)
+        #TODO add progress bar tqdm later
+        for _ in range(initialRefineSteps):
+            SPmerge02_initial(sm, densityCutoff=densityCutoff,
+                              distStart=distStart,
+                              initialShiftMaximum=initialShiftMaximum)
 
-    # later remove this
-    if only_initial_refinemen:
-        return sm
+            # If required, compute moving average of origins using KDE.
+            if originInitialAverage > 0:
+                _kernel_on_origin(sm, originInitialAverage)
+
+
 
     # ==================================
     # split here when refactoring
     # ==================================
-
-
-    # Make kernel for moving average of origins
-    if originWindowAverage > 0:
-        KDEorigin, KDEnorm, basisOr, scanOrLinear = _get_kernel_moving_origins(sm, originWindowAverage)
-    else:
-        KDEorigin, KDEnorm, basisOr, scanOrLinear = 1, None, None, None
-
 
     # Main alignment steps
     print('Beginning primary refinement ...')
@@ -290,7 +276,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
 
         # If required, compute moving average of origins using KDE.
         if originWindowAverage > 0:
-            _compute_KDE_moving_average(sm, KDEorigin, KDEnorm, basisOr, scanOrLinear)
+            _kernel_on_origin(sm, originWindowAverage)
 
         # If pixels moved is below threshold, halt refinement
         if (pixelsMoved/sm.numImages) < pixelsMovedThreshold:
@@ -299,10 +285,11 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None,
             alignStep += 1
 
     # Remake images for plotting
-    print('Recomputing images and plotting ...')
-    for k in range(sm.numImages):
-        # sMerge changed!
-        sm = SPmakeImage(sm, k)
+    if flagRemakeImage:
+        print('Recomputing images and plotting ...')
+        for k in range(sm.numImages):
+            # sMerge changed!
+            sm = SPmakeImage(sm, k)
 
     # Get final stats (instead of just before plotting)
     # Get mean absolute difference as a fraction of the mean scanline intensity.
@@ -340,7 +327,8 @@ def calcScore(image, xF, yF, dx, dy, intMeas):
 
     return score
 
-def _get_kernel_moving_origins(sm, originAverage):
+
+def _kernel_on_origin(sm, originAverage):
     # Make kernel for moving average of origins
     r = np.ceil(3*originAverage)
     v = np.arange(-r, r+1)
@@ -352,11 +340,6 @@ def _get_kernel_moving_origins(sm, originAverage):
     basisOr = np.vstack([np.zeros(sm.nr), np.arange(0, sm.nr)]) + 1
 
     scanOrLinear = np.zeros(sm.scanOr.shape)
-
-    return KDEorigin, KDEnorm, basisOr, scanOrLinear
-
-def _compute_KDE_moving_average(sm, KDEorigin, KDEnorm, basisOr, scanOrLinear):
-
     # Linear fit to scanlines
     for k in range(sm.numImages):
         # need to offset 1 here for scanOr?
@@ -374,119 +357,6 @@ def _compute_KDE_moving_average(sm, KDEorigin, KDEnorm, basisOr, scanOrLinear):
     # Add linear fit back into to origins, and/or linear weighting
     sm.scanOr += scanOrLinear
 
-def _initial_refinement(sm, initialRefineSteps, distStart,
-                        densityCutoff, initialShiftMaximum,
-                        originInitialAverage, KDEorigin, KDEnorm, basisOr, scanOrLinear):
-
-    for _ in range(initialRefineSteps):
-        sm.scanActive = np.zeros((sm.numImages, sm.nr), dtype=bool)
-
-        indStart = _get_starting_scanline(sm, distStart)
-
-        # Rough initial alignment of scanline origins, to nearest pixel
-        inds = np.arange(sm.nr)
-        dxy = np.array([[0,1,-1,0,0], [0,0,0,1,-1]])
-        score = np.zeros(dxy.shape[1])
-        for k in range(sm.numImages):
-            # Determine which image to align to, based on orthogonality
-            ortho = (sm.scanDir[k, :] * sm.scanDir).sum(axis=1)
-            indAlign = np.argmin(np.abs(ortho))
-
-            if sm.imageRef is None:
-                # sMerge changed!
-                sm = SPmakeImage(sm, indAlign, sm.scanActive[indAlign, :])
-
-                imageAlign = sm.imageTransform[indAlign, ...] * (sm.imageDensity[indAlign, ...]>densityCutoff)
-
-            else:
-                imageAlign = sm.imageRef
-
-            # align origins
-            dOr = sm.scanOr[k, :, 1:] - sm.scanOr[k, :, :-1]
-            xyStep = np.mean(dOr, axis=1)
-            
-            indAligned = np.zeros(sm.nr, dtype=bool)
-            indAligned[int(indStart[k])] = True
-
-
-            while not indAligned.all():
-
-                # Align selected scanlines
-                _align_selected_scanline(sm, k, inds, indAligned, xyStep, dxy, score, imageAlign, initialShiftMaximum)
-
-        # If required, compute moving average of origins using KDE.
-        if originInitialAverage > 0:
-            _compute_KDE_moving_average(sm, KDEorigin, KDEnorm, basisOr, scanOrLinear)
-
-
-
-def _get_starting_scanline(sm, distStart):
-    # Get starting scanlines for initial alignment
-    indStart = np.zeros(sm.numImages)
-    for k in range(sm.numImages):
-        # Scan line direction and origins
-        v = np.array([-sm.scanDir[k, 1], sm.scanDir[k, 0]])
-        or_ = sm.scanOr[k, ...]
-
-        # Determine closest scanline origin from point-line distance
-        c = -np.sum(sm.ref*v)
-        dist = np.abs(v[0]*or_[0,:] + v[1]*or_[1,:] + c) / np.linalg.norm(v)
-        indStart[k] = np.argmin(dist)
-        sub = dist < distStart
-        sm.scanActive[k, sub] = True
-
-    return indStart
-
-
-
-
-def _align_selected_scanline(sm, k, inds, indAligned, xyStep, dxy, score, imageAlign, initialShiftMaximum):
-    # Determine scanline indices to check next
-    v = binary_dilation(indAligned)
-    v[indAligned] = False
-    indMove = inds[v]
-
-    # currently active scanlines
-    indsActive = inds[indAligned]
-
-    t = np.arange(1, sm.nc+1)
-    for m in range(indMove.size):
-        # determine starting point from neighboring scanline
-        minDistInd = np.argmin(np.abs(indMove[m] - indsActive))
-
-        # Step perpendicular to scanDir
-        indMin = indsActive[minDistInd]
-        xyOr = sm.scanOr[k, :, indMin] + xyStep * (indMove[m] - indMin)
-
-        # Refine score by moving origin of this scanline
-        xInd = np.floor(xyOr[0] + t*sm.scanDir[k, 0] + 0.5).astype(int)
-        yInd = np.floor(xyOr[1] + t*sm.scanDir[k, 1] + 0.5).astype(int)
-
-        # Prevent pixels from leaving image boundaries (here mainly for strange image?)
-        # I think better to check?
-        xInd = np.clip(xInd, 0, sm.imageSize[0]-2).ravel()
-        yInd = np.clip(yInd, 0, sm.imageSize[1]-2).ravel()
-
-        for n in range(dxy.shape[1]):
-            nxInd = xInd + dxy[0, n]
-            nyInd = yInd + dxy[1, n]
-
-            # Prevent pixels from leaving image boundaries (here mainly for strange image?)
-            # I think better to check?
-            nxInd = np.clip(nxInd, 0, sm.imageSize[0]-2).ravel()
-            nyInd = np.clip(nyInd, 0, sm.imageSize[1]-2).ravel()
-            rInd = np.ravel_multi_index((nxInd, nyInd), sm.imageSize)
-
-            # scanLines indices switched to match row
-            score[n] = np.abs(imageAlign.ravel()[rInd] - sm.scanLines[k, indMove[m], :]).sum()
-
-        ind = np.argmin(score)
-
-        # change sMerge!
-        sm.scanOr[k, :, indMove[m]] = xyOr + dxy[:, ind]*initialShiftMaximum
-        indAligned[indMove[m]] = True
-
-        #TODO add progress bar tqdm later
 
 def _global_phase_correlation(sm, scanOrStep, meanAbsDiff, densityCutoff, densityDist,
                               flagGlobalShiftIncrease,

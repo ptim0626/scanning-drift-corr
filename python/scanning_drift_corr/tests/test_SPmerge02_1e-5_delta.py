@@ -15,7 +15,7 @@ import pytest
 
 from scanning_drift_corr.SPmerge01linear import SPmerge01linear
 from scanning_drift_corr.SPmerge02 import SPmerge02
-
+from scanning_drift_corr.SPmerge02_initial import SPmerge02_initial
 
 def test_initial_alignment_1en5_delta(MATLAB_simulated_images):
 
@@ -23,7 +23,7 @@ def test_initial_alignment_1en5_delta(MATLAB_simulated_images):
     scanAngles = (0, 90)
 
     sm = SPmerge01linear(scanAngles, im1, im2)
-    sm = SPmerge02(sm, 0, 8, only_initial_refinemen=True)
+    sm = SPmerge02(sm, 0, 8, flagRemakeImage=False)
 
     imgtrans0 = sm.imageTransform[0, ...]
     imgtrans1 = sm.imageTransform[1, ...]
