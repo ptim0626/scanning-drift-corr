@@ -111,26 +111,26 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
 
     # set default values or from input arguments
     meanScanLines = np.mean(sm.scanLines.shape[1:])
-    
+
     # for initial alignment
     densityCutoff = kwargs.get('densityCutoff', 0.8)
     distStart = kwargs.get('distStart', meanScanLines/16)
     initialShiftMaximum = kwargs.get('initialShiftMaximum', 1/4)
     originInitialAverage = kwargs.get('originInitialAverage', meanScanLines/16)
-    
+
     # for final alignment
     refineInitialStep = kwargs.get('refineInitialStep', 1/2)
     pixelsMovedThreshold = kwargs.get('pixelsMovedThreshold', 0.1)
     stepSizeReduce = kwargs.get('stepSizeReduce', 1/2)
     flagPointOrder = kwargs.get('flagPointOrder', True)
     originWindowAverage = kwargs.get('originWindowAverage', 1)
-    
+
     # for global phase correlation
     flagGlobalShift = kwargs.get('flagGlobalShift', False)
     flagGlobalShiftIncrease = kwargs.get('flagGlobalShiftIncrease', False)
     minGlobalShift = kwargs.get('minGlobalShift', 1)
     densityDist = kwargs.get('densityDist', meanScanLines/32)
-    
+
     # general use
     flagRemakeImage = kwargs.get('flagRemakeImage', True)
     flagPlot = kwargs.get('flagPlot', True)
@@ -169,25 +169,25 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
         # Compute all images from current origins
         for k in range(sm.numImages):
             sm = SPmakeImage(sm, k)
-    
+
         # Get mean absolute difference as a fraction of the mean scanline intensity.
         meanAbsDiff = _fraction_MD(sm, densityCutoff)
         sm.stats[alignStep-1, :] = np.array([alignStep-1, meanAbsDiff])
-    
+
         # If required, check for global alignment of images
         if flagGlobalShift:
             print('Checking global alignment ...')
             _global_phase_correlation(sm, scanOrStep, meanAbsDiff, densityCutoff,
                                       densityDist,
                                       flagGlobalShiftIncrease,
-                                      minGlobalShift, refineInitialStep, alignStep)        
-    
+                                      minGlobalShift, refineInitialStep, alignStep)
+
         stopRefine = SPmerge02_final(sm, scanOrStep,
                                      densityCutoff=densityCutoff,
                                      pixelsMovedThreshold=pixelsMovedThreshold,
-                                     stepSizeReduce=stepSizeReduce, 
+                                     stepSizeReduce=stepSizeReduce,
                                      flagPointOrder=flagPointOrder)
-        
+
         # If required, compute moving average of origins using KDE.
         if originWindowAverage > 0:
             _kernel_on_origin(sm, originWindowAverage)
@@ -202,7 +202,6 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
     if flagRemakeImage:
         print('Recomputing images and plotting ...')
         for k in range(sm.numImages):
-            # sMerge changed!
             sm = SPmakeImage(sm, k)
 
     # Get final stats (instead of just before plotting)

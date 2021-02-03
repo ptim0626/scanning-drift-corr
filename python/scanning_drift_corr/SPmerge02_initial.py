@@ -41,40 +41,59 @@ def SPmerge02_initial(sm, **kwargs):
 
     # Rough initial alignment of scanline origins, to nearest pixel
     sm.scanActive = np.zeros((sm.numImages, sm.nr), dtype=bool)
-    indStart = _get_starting_scanline(sm, distStart)
+    indStart = _get_starting_scanlines(sm, distStart)
     for k in range(sm.numImages):
-        # Determine which image to align to, based on orthogonality
-        # sum of row of ortho is 0 if they are exact orthogonal
-        ortho = (sm.scanDir[k, :] * sm.scanDir).sum(axis=1)
-        indAlign = np.argmin(np.abs(ortho))
+        # get alignment image for the current image, based on orthogonality
+        imageAlign = _get_reference_image(sm, k, densityCutoff)
 
-        if sm.imageRef is None:
-            # no reference image, use the most orthogonal image to current one
-            sm = SPmakeImage(sm, indAlign, sm.scanActive[indAlign, :])
-            imageAlign = sm.imageTransform[indAlign, ...] *\
-                (sm.imageDensity[indAlign, ...]>densityCutoff)
-        else:
-            imageAlign = sm.imageRef
-
-        # align origins
+        # align origins and get the step size
         dOr = sm.scanOr[k, :, 1:] - sm.scanOr[k, :, :-1]
         xyStep = np.mean(dOr, axis=1)
 
         # set the aligned indices for this image
         indAligned = np.zeros(sm.nr, dtype=bool)
-        indAligned[int(indStart[k])] = True
+        indAligned[indStart[k]] = True
 
-        # align selected scanlines
+        # start the alignment and stop until all have been aligned
+        dxy = np.array([[0,1,-1,0,0], [0,0,0,1,-1]])
         while not indAligned.all():
-            _align_selected_scanline(sm, k, indAligned, xyStep, imageAlign,
-                                     initialShiftMaximum)
+            # Determine scanline indices to check next
+            # indMove contains the indices of scanline to check
+            # indsActive contains the indices of currently active scanlines
+            inds = np.arange(sm.nr)
+            v = binary_dilation(indAligned)
+            v[indAligned] = False
+            indsMove = inds[v]
+            indsActive = inds[indAligned]
+
+            # loop over each selected scan line
+            for m in indsMove:
+                # determine starting point from neighboring scanline
+                xyOr = _get_xyOr(sm, k, m, indsActive, xyStep)
+
+                # score each of the moved selected scan line against the
+                # reference image (imageAlign)
+                score = np.zeros(dxy.shape[1])
+                raw_scanline = sm.scanLines[k, m, :]
+                for p in range(dxy.shape[1]):
+                    xymove = dxy[:, p]
+                    score[p] = _get_score(sm, imageAlign, xyOr, k, xymove,
+                                          raw_scanline)
+
+                # move the scan line
+                ind = np.argmin(score)
+                sm.scanOr[k, :, m] = xyOr + dxy[:, ind]*initialShiftMaximum
+                indAligned[m] = True
 
     return
 
+def _get_starting_scanlines(sm, distStart):
+    """ Get starting scanlines for initial alignment
+    indStart is an array containing the index of the starting scanline for
+    each image
+    """
 
-def _get_starting_scanline(sm, distStart):
-    # Get starting scanlines for initial alignment
-    indStart = np.zeros(sm.numImages)
+    indStart = np.zeros(sm.numImages, dtype=int)
     for k in range(sm.numImages):
         # Scan line direction and origins
         v = np.array([-sm.scanDir[k, 1], sm.scanDir[k, 0]])
@@ -89,60 +108,55 @@ def _get_starting_scanline(sm, distStart):
 
     return indStart
 
-
-def _align_selected_scanline(sm, k, indAligned, xyStep, imageAlign,
-                             initialShiftMaximum):
-    """ndarray indAligned could be mutated.
+def _get_reference_image(sm, k, densityCutoff):
+    """Generate alignment image, use the most orthogonal image to current one
+    unless user has specified a reference image.
     """
 
-    inds = np.arange(sm.nr)
-    dxy = np.array([[0,1,-1,0,0], [0,0,0,1,-1]])
-    score = np.zeros(dxy.shape[1])
+    # sum of row of ortho is 0 if they are exact orthogonal
+    ortho = (sm.scanDir[k, :] * sm.scanDir).sum(axis=1)
+    indAlign = np.argmin(np.abs(ortho))
 
-    # Determine scanline indices to check next
-    v = binary_dilation(indAligned)
-    v[indAligned] = False
-    indMove = inds[v]
+    if sm.imageRef is None:
+        sm = SPmakeImage(sm, indAlign, sm.scanActive[indAlign, :])
+        dens_cut = sm.imageDensity[indAlign, ...] > densityCutoff
+        imageAlign = sm.imageTransform[indAlign, ...] * dens_cut
+    else:
+        imageAlign = sm.imageRef
 
-    # currently active scanlines
-    indsActive = inds[indAligned]
+    return imageAlign
+
+def _get_xyOr(sm, k, m, indsActive, xyStep):
+    """Determine starting point from neighboring scanline
+    """
+
+    minDistInd = np.argmin(np.abs(m - indsActive))
+
+    # Step perpendicular to scanDir (orthogonality)
+    indMin = indsActive[minDistInd]
+    xyOr = sm.scanOr[k, :, indMin] + xyStep * (m - indMin)
+
+    return xyOr
+
+def _get_score(sm, imageAlign, xyOr, k, xymove, raw_scanline):
+    """Refine score by moving origin of this scanline
+    """
 
     t = np.arange(1, sm.nc+1)
-    for m in range(indMove.size):
-        # determine starting point from neighboring scanline
-        minDistInd = np.argmin(np.abs(indMove[m] - indsActive))
+    xInd = np.floor(xyOr[0] + t*sm.scanDir[k, 0] + 0.5).astype(int)
+    yInd = np.floor(xyOr[1] + t*sm.scanDir[k, 1] + 0.5).astype(int)
 
-        # Step perpendicular to scanDir
-        indMin = indsActive[minDistInd]
-        xyOr = sm.scanOr[k, :, indMin] + xyStep * (indMove[m] - indMin)
+    # move the scan line
+    dx, dy = xymove
+    nxInd = xInd + dx
+    nyInd = yInd + dy
 
-        # Refine score by moving origin of this scanline
-        xInd = np.floor(xyOr[0] + t*sm.scanDir[k, 0] + 0.5).astype(int)
-        yInd = np.floor(xyOr[1] + t*sm.scanDir[k, 1] + 0.5).astype(int)
+    # Prevent pixels from leaving image boundaries
+    nxInd = np.clip(nxInd, 0, sm.imageSize[0]-2).ravel()
+    nyInd = np.clip(nyInd, 0, sm.imageSize[1]-2).ravel()
+    rInd = np.ravel_multi_index((nxInd, nyInd), sm.imageSize)
 
-        # Prevent pixels from leaving image boundaries
-        # I think better to check?
-        xInd = np.clip(xInd, 0, sm.imageSize[0]-2).ravel()
-        yInd = np.clip(yInd, 0, sm.imageSize[1]-2).ravel()
+    # calculate the score after moving the scanline
+    score = np.abs(imageAlign.ravel()[rInd] - raw_scanline).sum()
 
-        for n in range(dxy.shape[1]):
-            nxInd = xInd + dxy[0, n]
-            nyInd = yInd + dxy[1, n]
-
-            # Prevent pixels from leaving image boundaries
-            # I think better to check?
-            nxInd = np.clip(nxInd, 0, sm.imageSize[0]-2).ravel()
-            nyInd = np.clip(nyInd, 0, sm.imageSize[1]-2).ravel()
-            rInd = np.ravel_multi_index((nxInd, nyInd), sm.imageSize)
-
-            # scanLines indices switched to match row
-            score[n] = np.abs(imageAlign.ravel()[rInd] -
-                              sm.scanLines[k, indMove[m], :]).sum()
-
-        ind = np.argmin(score)
-
-        # move the scan line
-        sm.scanOr[k, :, indMove[m]] = xyOr + dxy[:, ind]*initialShiftMaximum
-        indAligned[indMove[m]] = True
-
-    return
+    return score
