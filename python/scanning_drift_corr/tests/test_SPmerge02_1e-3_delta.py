@@ -22,7 +22,7 @@ def test_final_alignment_WITH_global_phase_corr_1en3_delta(MATLAB_simulated_imag
     scanAngles = (0, 90)
 
     sm = SPmerge01linear(scanAngles, im1, im2)
-    sm = SPmerge02(sm, 32, 8)
+    sm = SPmerge02(sm, 32, 8, flagGlobalShift=True)
 
     imgtrans0 = sm.imageTransform[0, ...]
     imgtrans1 = sm.imageTransform[1, ...]
@@ -56,7 +56,7 @@ def test_final_alignment_rectangle_matrices_WITH_global_phase_corr_1en3_delta(sm
     scanAngles = (10, 100)
 
     sm = SPmerge01linear(scanAngles, im1, im2)
-    sm = SPmerge02(sm, 2, 1)
+    sm = SPmerge02(sm, 2, 1, flagGlobalShift=True)
 
     imgtrans0 = sm.imageTransform[0, ...]
     imgtrans1 = sm.imageTransform[1, ...]
