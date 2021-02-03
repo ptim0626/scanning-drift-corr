@@ -111,22 +111,26 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
 
     # set default values or from input arguments
     meanScanLines = np.mean(sm.scanLines.shape[1:])
+    
     # for initial alignment
     densityCutoff = kwargs.get('densityCutoff', 0.8)
     distStart = kwargs.get('distStart', meanScanLines/16)
     initialShiftMaximum = kwargs.get('initialShiftMaximum', 1/4)
     originInitialAverage = kwargs.get('originInitialAverage', meanScanLines/16)
+    
     # for final alignment
     refineInitialStep = kwargs.get('refineInitialStep', 1/2)
     pixelsMovedThreshold = kwargs.get('pixelsMovedThreshold', 0.1)
     stepSizeReduce = kwargs.get('stepSizeReduce', 1/2)
     flagPointOrder = kwargs.get('flagPointOrder', True)
     originWindowAverage = kwargs.get('originWindowAverage', 1)
+    
     # for global phase correlation
     flagGlobalShift = kwargs.get('flagGlobalShift', False)
     flagGlobalShiftIncrease = kwargs.get('flagGlobalShiftIncrease', False)
     minGlobalShift = kwargs.get('minGlobalShift', 1)
     densityDist = kwargs.get('densityDist', meanScanLines/32)
+    
     # general use
     flagRemakeImage = kwargs.get('flagRemakeImage', True)
     flagPlot = kwargs.get('flagPlot', True)
@@ -156,27 +160,18 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
     # Main alignment steps
     print('Beginning primary refinement ...')
 
-
+    # initialisation
     scanOrStep = np.ones((sm.numImages, sm.nr)) * refineInitialStep
     alignStep = 1
     sm.stats = np.zeros((refineMaxSteps+1, 2))
 
-
     while alignStep <= refineMaxSteps:
-        
-    
         # Compute all images from current origins
         for k in range(sm.numImages):
-            # sMerge changed!
             sm = SPmakeImage(sm, k)
     
         # Get mean absolute difference as a fraction of the mean scanline intensity.
-        imgT_mean = sm.imageTransform.mean(axis=0)
-        Idiff = np.abs(sm.imageTransform - imgT_mean).mean(axis=0)
-        dmask = sm.imageDensity.min(axis=0) > densityCutoff
-        img_mean = np.abs(sm.scanLines).mean()
-        meanAbsDiff = Idiff[dmask].mean() / img_mean
-        
+        meanAbsDiff = _fraction_MD(sm, densityCutoff)
         sm.stats[alignStep-1, :] = np.array([alignStep-1, meanAbsDiff])
     
         # If required, check for global alignment of images
@@ -187,21 +182,18 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
                                       flagGlobalShiftIncrease,
                                       minGlobalShift, refineInitialStep, alignStep)        
     
-    
-        pixelsMoved = SPmerge02_final(sm, scanOrStep,
-                                      densityCutoff=densityCutoff,
-                                      stepSizeReduce=stepSizeReduce, 
-                                      flagPointOrder=flagPointOrder)
+        stopRefine = SPmerge02_final(sm, scanOrStep,
+                                     densityCutoff=densityCutoff,
+                                     pixelsMovedThreshold=pixelsMovedThreshold,
+                                     stepSizeReduce=stepSizeReduce, 
+                                     flagPointOrder=flagPointOrder)
         
-
-        
-
         # If required, compute moving average of origins using KDE.
         if originWindowAverage > 0:
             _kernel_on_origin(sm, originWindowAverage)
 
         # If pixels moved is below threshold, halt refinement
-        if (pixelsMoved/sm.numImages) < pixelsMovedThreshold:
+        if stopRefine:
             alignStep = refineMaxSteps + 1
         else:
             alignStep += 1
@@ -215,11 +207,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
 
     # Get final stats (instead of just before plotting)
     # Get mean absolute difference as a fraction of the mean scanline intensity.
-    imgT_mean = sm.imageTransform.mean(axis=0)
-    Idiff = np.abs(sm.imageTransform - imgT_mean).mean(axis=0)
-    dmask = sm.imageDensity.min(axis=0) > densityCutoff
-    img_mean = np.abs(sm.scanLines).mean()
-    meanAbsDiff = Idiff[dmask].mean() / img_mean
+    meanAbsDiff = _fraction_MD(sm, densityCutoff)
     sm.stats[alignStep-1, :] = np.array([alignStep-1, meanAbsDiff])
 
     if flagPlot:
@@ -227,8 +215,6 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
 
 
     return sm
-
-
 
 
 
@@ -263,6 +249,15 @@ def _kernel_on_origin(sm, originAverage):
 
 
 
+def _fraction_MD(sm, densityCutoff):
+    # Get mean absolute difference as a fraction of the mean scanline intensity.
+    imgT_mean = sm.imageTransform.mean(axis=0)
+    Idiff = np.abs(sm.imageTransform - imgT_mean).mean(axis=0)
+    dmask = sm.imageDensity.min(axis=0) > densityCutoff
+    img_mean = np.abs(sm.scanLines).mean()
+    meanAbsDiff = Idiff[dmask].mean() / img_mean
+
+    return meanAbsDiff
 
 def _plot(sm):
     imagePlot = (sm.imageTransform*sm.imageDensity).sum(axis=0)
