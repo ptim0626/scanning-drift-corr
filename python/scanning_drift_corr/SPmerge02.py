@@ -6,6 +6,7 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import convolve
+from tqdm import tqdm
 
 from scanning_drift_corr.SPmakeImage import SPmakeImage
 from scanning_drift_corr.SPmerge02_initial import SPmerge02_initial
@@ -25,7 +26,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
         number of initial alignment steps. Default to None, set to 8 if it has
         not been performed, or set to 0 if it has been performed
 
-
+    ------------------ For initial alignment ------------------
     densityCutoff : float, optional
         density cutoff for image boundaries (norm. to 1). Default to 0.8.
     distStart : float, optional
@@ -39,7 +40,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
         window sigma in px for initial smoothing. Default to mean of raw data
         divided by 16.
 
-
+    ------------------ For final alignment ------------------
     refineInitialStep : float, optional
         initial step size for final refinement, in pixels. Default to 0.5.
     pixelsMovedThreshold : float, optional
@@ -56,7 +57,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
         zero to not use window avg. This window is relative to linear steps.
         Default to 1.
 
-
+    ------------------ For global phase correlation ------------------
     flagGlobalShift : bool, optional
         if this flag is true, a global phase correlation, performed each
         final iteration (This is meant to fix unit cell shifts and similar
@@ -72,15 +73,13 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
          scanline origins (make scanline steps more linear). Default to mean
          of raw data divided by 32.
 
-
+    ------------------ General behaviour ------------------
     flagRemakeImage : bool, optional
         whether to recompute the image. Default to True.
     flagReportProgress : bool, optional
         whether to show progress bars or not. Default to True.
     flagPlot : bool
         to plot the aligned images of not. Default to True.
-
-
     """
 
     # ignore unknown input arguments
@@ -136,13 +135,10 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
     flagPlot = kwargs.get('flagPlot', True)
     flagReportProgress = kwargs.get('flagReportProgress', True)
 
-
     # if required, perform initial alignment
     if initialRefineSteps > 0:
-        print('Initial refinement ...')
-
-        #TODO add progress bar tqdm later
-        for _ in range(initialRefineSteps):
+        for _ in tqdm(range(initialRefineSteps), desc='Initial refinement',
+                      leave=False, disable=not flagReportProgress):
             SPmerge02_initial(sm, densityCutoff=densityCutoff,
                               distStart=distStart,
                               initialShiftMaximum=initialShiftMaximum)
@@ -152,12 +148,14 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
                 _kernel_on_origin(sm, originInitialAverage)
 
     # Main alignment steps
-    print('Beginning primary refinement ...')
-
     # initialisation
     scanOrStep = np.ones((sm.numImages, sm.nr)) * refineInitialStep
     alignStep = 1
     sm.stats = np.zeros((refineMaxSteps+1, 2))
+
+    # create progress bar for the while loop
+    pbar = tqdm(total=refineMaxSteps, desc='Final refinement', leave=False,
+                disable=not flagReportProgress)
 
     while alignStep <= refineMaxSteps:
         # Compute all images from current origins
@@ -171,12 +169,14 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
 
         # If required, check for global alignment of images
         if flagGlobalShift:
-            print('Checking global alignment ...')
+            pbar.set_description('Checking global alignment..')
             _globbal_phase_correlation(sm, scanOrStep, meanAbsDiff,
                                        densityCutoff, densityDist,
                                        flagGlobalShiftIncrease,
                                        minGlobalShift, refineInitialStep,
-                                       alignStep)
+                                       alignStep, flagReportProgress)
+           # restore the progress bar msg
+            pbar.set_description('Final refinement')
 
         # final alignment
         stopRefine = SPmerge02_final(sm, scanOrStep,
@@ -195,10 +195,18 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
         else:
             alignStep += 1
 
+        # update progress
+        pbar.update(1)
+
+
+    # close the progress bar of the while loop
+    pbar.close()
+
     # Remake images for plotting
     if flagRemakeImage:
-        print('Recomputing images and plotting ...')
-        for k in range(sm.numImages):
+        for k in (tqdm(range(sm.numImages), desc='Recomputing images',
+                       leave=False) if flagReportProgress else
+                  range(sm.numImages)):
             sm = SPmakeImage(sm, k)
 
     # Get final stats
@@ -294,4 +302,3 @@ def _plot(sm):
         ax.set_ylabel('Mean Absolute Difference [%]')
 
     return
-

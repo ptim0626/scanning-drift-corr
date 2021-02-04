@@ -8,9 +8,9 @@ from scanning_drift_corr.tools import distance_transform
 
 
 def _globbal_phase_correlation(sm, scanOrStep, meanAbsDiff, densityCutoff,
-                               densityDist,
-                       flagGlobalShiftIncrease, minGlobalShift,
-                       refineInitialStep, alignStep):
+                               densityDist,flagGlobalShiftIncrease,
+                               minGlobalShift, refineInitialStep, alignStep,
+                               flagReportProgress):
     """to prevent unit cell hopping
     """
 
