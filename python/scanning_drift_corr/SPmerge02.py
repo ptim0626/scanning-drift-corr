@@ -10,8 +10,7 @@ from scipy.signal import convolve
 from scanning_drift_corr.SPmakeImage import SPmakeImage
 from scanning_drift_corr.SPmerge02_initial import SPmerge02_initial
 from scanning_drift_corr.SPmerge02_final import SPmerge02_final
-from scanning_drift_corr.SPmerge02_phase_correlation import SPmerge02_phase_correlation
-from scanning_drift_corr.tools import distance_transform
+from scanning_drift_corr.SPmerge02_phase_correlation import _globbal_phase_correlation
 
 def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
     """Refinement function for scanning probe image
@@ -152,12 +151,6 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
             if originInitialAverage > 0:
                 _kernel_on_origin(sm, originInitialAverage)
 
-
-
-    # ==================================
-    # split here when refactoring
-    # ==================================
-
     # Main alignment steps
     print('Beginning primary refinement ...')
 
@@ -171,18 +164,21 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
         for k in range(sm.numImages):
             sm = SPmakeImage(sm, k)
 
-        # Get mean absolute difference as a fraction of the mean scanline intensity.
+        # Get mean absolute difference as a fraction of the mean scanline
+        # intensity.
         meanAbsDiff = _fraction_MD(sm, densityCutoff)
         sm.stats[alignStep-1, :] = np.array([alignStep-1, meanAbsDiff])
 
         # If required, check for global alignment of images
         if flagGlobalShift:
             print('Checking global alignment ...')
-            SPmerge02_phase_correlation(sm, scanOrStep, meanAbsDiff, densityCutoff,
-                                      densityDist,
-                                      flagGlobalShiftIncrease,
-                                      minGlobalShift, refineInitialStep, alignStep)
+            _globbal_phase_correlation(sm, scanOrStep, meanAbsDiff,
+                                       densityCutoff, densityDist,
+                                       flagGlobalShiftIncrease,
+                                       minGlobalShift, refineInitialStep,
+                                       alignStep)
 
+        # final alignment
         stopRefine = SPmerge02_final(sm, scanOrStep,
                                      densityCutoff=densityCutoff,
                                      pixelsMovedThreshold=pixelsMovedThreshold,
@@ -205,26 +201,25 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
         for k in range(sm.numImages):
             sm = SPmakeImage(sm, k)
 
-    # Get final stats (instead of just before plotting)
-    # Get mean absolute difference as a fraction of the mean scanline intensity.
+    # Get final stats
     meanAbsDiff = _fraction_MD(sm, densityCutoff)
     sm.stats[alignStep-1, :] = np.array([alignStep-1, meanAbsDiff])
 
     if flagPlot:
         _plot(sm)
 
-
     return sm
 
-
-
 def _kernel_on_origin(sm, originAverage):
-    # Make kernel for moving average of origins
+    """Make kernel for moving average of origins
+    """
+
     r = np.ceil(3*originAverage)
     v = np.arange(-r, r+1)
     KDEorigin = np.exp(-v**2/(2*originAverage**2))
 
-    KDEnorm = 1 / convolve(np.ones(sm.scanOr.shape), KDEorigin[:, None, None].T, 'same')
+    KDEnorm = 1 / convolve(np.ones(sm.scanOr.shape),
+                           KDEorigin[:, None, None].T, 'same')
 
     # need to offset 1 here??
     basisOr = np.vstack([np.zeros(sm.nr), np.arange(0, sm.nr)]) + 1
@@ -242,15 +237,17 @@ def _kernel_on_origin(sm, originAverage):
     sm.scanOr -= scanOrLinear
 
     # Moving average of scanlines using KDE
-    sm.scanOr = convolve(sm.scanOr, KDEorigin[:, None, None].T, 'same') * KDEnorm
+    sm.scanOr = convolve(sm.scanOr,
+                         KDEorigin[:, None, None].T, 'same') * KDEnorm
 
     # Add linear fit back into to origins, and/or linear weighting
     sm.scanOr += scanOrLinear
 
-
-
 def _fraction_MD(sm, densityCutoff):
-    # Get mean absolute difference as a fraction of the mean scanline intensity.
+    """Get mean absolute difference as a fraction of the mean scanline
+    intensity.
+    """
+
     imgT_mean = sm.imageTransform.mean(axis=0)
     Idiff = np.abs(sm.imageTransform - imgT_mean).mean(axis=0)
     dmask = sm.imageDensity.min(axis=0) > densityCutoff
