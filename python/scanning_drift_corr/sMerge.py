@@ -3,8 +3,6 @@
 
 import numpy as np
 
-from scanning_drift_corr.SPmakeImage import SPmakeImage
-
 class sMerge:
     """The sMerge class, corresponds to the sMerge struct
     """
@@ -15,10 +13,6 @@ class sMerge:
         # properties to be use d in SPmakeimage
         self.KDEsigma = 1 / 2
         self.edgeWidth = 1 / 128
-        
-        # self.linearSearch = np.linspace(-0.02, 0.02, num=2*2+1)
-
-        # self.flagReportProgress = flagReportProgress
 
         self._input_validation(scanAngles, images)
         self.nr, self.nc = self.img_shape
@@ -46,8 +40,6 @@ class sMerge:
 
         self.imageTransform = np.zeros((self.numImages, *self.imageSize))
         self.imageDensity = np.zeros((self.numImages, *self.imageSize))
-        # self.inds = np.linspace(-0.5, 0.5, num=self.nr)[:, None]
-        # self.linearSearch *= self.nr
         self.linearSearchScores = None
         self.xyLinearDrift = None
         self.ref = np.floor(self.imageSize/2 + 0.5).astype(int) - 1
