@@ -2,9 +2,9 @@
 """
 
 import numpy as np
-from scipy.ndimage import gaussian_filter
 
-from scanning_drift_corr.tools import distance_transform, bilinear_interpolation
+from scanning_drift_corr.tools import distance_transform, \
+    bilinear_interpolation, apply_KDE
 
 def SPmakeImage(sMerge, indImage, indLines=None, delta=0):
     """
@@ -36,10 +36,16 @@ def SPmakeImage(sMerge, indImage, indLines=None, delta=0):
     """
 
     # perform bilinear interpolation
-    sig, count = bilinear_interpolation(sMerge, indImage, indLines)
+    scanLines = sMerge.scanLines[indImage, ...]
+    scanOr = sMerge.scanOr[indImage, ...]
+    scanDir = sMerge.scanDir[indImage, :]
+    imageSize = sMerge.imageSize
+    sig, count = bilinear_interpolation(scanLines, scanOr, scanDir, imageSize,
+                                        indLines=indLines)
 
     # Apply KDE
-    sig, count = _apply_KDE(sMerge, sig, count)
+    sig = apply_KDE(sig, sMerge.KDEsigma)
+    count = apply_KDE(count, sMerge.KDEsigma)
 
     # cheat mode!
     if delta:
@@ -64,22 +70,3 @@ def SPmakeImage(sMerge, indImage, indLines=None, delta=0):
     sMerge.imageDensity[indImage, ...] = np.sin(dtmin*np.pi/2)**2
 
     return sMerge
-
-def _apply_KDE(sMerge, sig, count):
-    """Apply KDE
-    """
-
-    # r min at 5
-    r = np.maximum(np.ceil(sMerge.KDEsigma*3), 5)
-
-    # the parameters match the behaviour of convolving a normalised Gaussian
-    # kernel in MATLAB
-    fargs = {'sigma' : sMerge.KDEsigma,
-             'mode' : 'constant',
-             'cval' : 0,
-             'truncate' : r / sMerge.KDEsigma}
-
-    sig = gaussian_filter(sig, **fargs)
-    count = gaussian_filter(count, **fargs)
-
-    return sig, count

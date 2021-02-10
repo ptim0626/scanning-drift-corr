@@ -78,9 +78,14 @@ def SPmerge03(sm, **kwargs):
 
     # kernel generation in upsampled coordinates
     kernel = np.fft.fft2(np.exp(-x**2/(2*KDEsigma**2)) * np.exp(-y**2/(2*KDEsigma**2)))
+    imageSize = sm.imageSize
     for k in range(sm.numImages):
         # Loop over scans and create images / densities
-        ret = bilinear_interpolation(sm, k, upsampleFactor=upsampleFactor)
+        scanLines = sm.scanLines[k, ...]
+        scanOr = sm.scanOr[k, ...]
+        scanDir = sm.scanDir[k, :]
+        ret = bilinear_interpolation(scanLines, scanOr, scanDir, imageSize,
+                                     upsampleFactor=upsampleFactor)
 
         # Apply KDE to both arrays
         signalArray[k, ...] = conv_fft(ret[0], kernel)
