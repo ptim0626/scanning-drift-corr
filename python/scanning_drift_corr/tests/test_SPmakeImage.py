@@ -3,9 +3,9 @@ import scipy.io as sio
 import pytest
 
 from scanning_drift_corr.sMerge import sMerge
-from scanning_drift_corr.SPmakeImage import SPmakeImage, _apply_KDE
+from scanning_drift_corr.SPmakeImage import SPmakeImage
 
-from scanning_drift_corr.tools import bilinear_interpolation
+from scanning_drift_corr.tools import bilinear_interpolation, apply_KDE
 
 
 @pytest.mark.parametrize('angles, mfile',
@@ -59,10 +59,19 @@ def test_after_bilinear_interpolation_angle_30_120(small_delta_matrix):
     xyShift = np.hstack([inds*xDrift[1,3], inds*yDrift[1,3]])
     sm.scanOr[:2, ...] += xyShift.T
 
-    # perform bilinear interpolation
-    indLines = np.ones(sm.nr, dtype=bool)
-    sig0, count0 = bilinear_interpolation(sm, 0, indLines)
-    sig1, count1 = bilinear_interpolation(sm, 1, indLines)
+    # perform bilinear interpolation and apply KDE
+    imageSize = sm.imageSize
+
+    scanLines0 = sm.scanLines[0, ...]
+    scanOr0 = sm.scanOr[0, ...]
+    scanDir0 = sm.scanDir[0, :]
+    sig0, count0 = bilinear_interpolation(scanLines0, scanOr0, scanDir0,
+                                          imageSize)
+    scanLines1 = sm.scanLines[1, ...]
+    scanOr1 = sm.scanOr[1, ...]
+    scanDir1 = sm.scanDir[1, :]
+    sig1, count1 = bilinear_interpolation(scanLines1, scanOr1, scanDir1,
+                                          imageSize)
 
     # MATLAB results
     mstruct = sio.loadmat('matlab_result/SPmakeimage_rotated_sig_count_ang30_small_delta.mat')
@@ -90,11 +99,22 @@ def test_after_bilinear_interpolation_KDE_angle_30_120(small_delta_matrix):
     sm.scanOr[:2, ...] += xyShift.T
 
     # perform bilinear interpolation and apply KDE
-    indLines = np.ones(sm.nr, dtype=bool)
-    sig0, count0 = bilinear_interpolation(sm, 0, indLines)
-    sig0, count0 = _apply_KDE(sm, sig0, count0)
-    sig1, count1 = bilinear_interpolation(sm, 1, indLines)
-    sig1, count1 = _apply_KDE(sm, sig1, count1)
+    imageSize = sm.imageSize
+
+    scanLines0 = sm.scanLines[0, ...]
+    scanOr0 = sm.scanOr[0, ...]
+    scanDir0 = sm.scanDir[0, :]
+    sig0, count0 = bilinear_interpolation(scanLines0, scanOr0, scanDir0,
+                                          imageSize)
+    sig0 = apply_KDE(sig0, sm.KDEsigma)
+    count0 = apply_KDE(count0, sm.KDEsigma)
+    scanLines1 = sm.scanLines[1, ...]
+    scanOr1 = sm.scanOr[1, ...]
+    scanDir1 = sm.scanDir[1, :]
+    sig1, count1 = bilinear_interpolation(scanLines1, scanOr1, scanDir1,
+                                          imageSize)
+    sig1 = apply_KDE(sig1, sm.KDEsigma)
+    count1 = apply_KDE(count1, sm.KDEsigma)
 
     # MATLAB results
     mstruct = sio.loadmat('matlab_result/SPmakeimage_rotated_KDE_sig_count_ang30_small_delta.mat')
@@ -123,13 +143,25 @@ def test_sub_angle_30_120(small_delta_matrix):
     xyShift = np.hstack([inds*xDrift[1,3], inds*yDrift[1,3]])
     sm.scanOr[:2, ...] += xyShift.T
 
-    # perform bilinear interpolation
-    indLines = np.ones(sm.nr, dtype=bool)
-    sig0, count0 = bilinear_interpolation(sm, 0, indLines)
-    sig0, count0 = _apply_KDE(sm, sig0, count0)
+    # perform bilinear interpolation and apply KDE
+    imageSize = sm.imageSize
+
+    scanLines0 = sm.scanLines[0, ...]
+    scanOr0 = sm.scanOr[0, ...]
+    scanDir0 = sm.scanDir[0, :]
+    sig0, count0 = bilinear_interpolation(scanLines0, scanOr0, scanDir0,
+                                          imageSize)
+    sig0 = apply_KDE(sig0, sm.KDEsigma)
+    count0 = apply_KDE(count0, sm.KDEsigma)
+    scanLines1 = sm.scanLines[1, ...]
+    scanOr1 = sm.scanOr[1, ...]
+    scanDir1 = sm.scanDir[1, :]
+    sig1, count1 = bilinear_interpolation(scanLines1, scanOr1, scanDir1,
+                                          imageSize)
+    sig1 = apply_KDE(sig1, sm.KDEsigma)
+    count1 = apply_KDE(count1, sm.KDEsigma)
+
     sub0 = count0 > 0
-    sig1, count1 = bilinear_interpolation(sm, 1, indLines)
-    sig1, count1 = _apply_KDE(sm, sig1, count1)
     sub1 = count1 > 0
 
     # MATLAB results
@@ -158,9 +190,18 @@ def test_after_bilinear_interpolation_simulated_data(angles, mfile, MATLAB_simul
     sm.scanOr[:2, ...] += xyShift.T
 
     # perform bilinear interpolation and apply KDE
-    indLines = np.ones(sm.nr, dtype=bool)
-    sig0, count0 = bilinear_interpolation(sm, 0, indLines)
-    sig1, count1 = bilinear_interpolation(sm, 1, indLines)
+    imageSize = sm.imageSize
+
+    scanLines0 = sm.scanLines[0, ...]
+    scanOr0 = sm.scanOr[0, ...]
+    scanDir0 = sm.scanDir[0, :]
+    sig0, count0 = bilinear_interpolation(scanLines0, scanOr0, scanDir0,
+                                          imageSize)
+    scanLines1 = sm.scanLines[1, ...]
+    scanOr1 = sm.scanOr[1, ...]
+    scanDir1 = sm.scanDir[1, :]
+    sig1, count1 = bilinear_interpolation(scanLines1, scanOr1, scanDir1,
+                                          imageSize)
 
     # MATLAB results
     m1, m2 = mfile
@@ -193,11 +234,22 @@ def test_after_bilinear_interpolation_KDE_simulated_data(angles, mfile, MATLAB_s
     sm.scanOr[:2, ...] += xyShift.T
 
     # perform bilinear interpolation and apply KDE
-    indLines = np.ones(sm.nr, dtype=bool)
-    sig0, count0 = bilinear_interpolation(sm, 0, indLines)
-    sig0, count0 = _apply_KDE(sm, sig0, count0)
-    sig1, count1 = bilinear_interpolation(sm, 1, indLines)
-    sig1, count1 = _apply_KDE(sm, sig1, count1)
+    imageSize = sm.imageSize
+
+    scanLines0 = sm.scanLines[0, ...]
+    scanOr0 = sm.scanOr[0, ...]
+    scanDir0 = sm.scanDir[0, :]
+    sig0, count0 = bilinear_interpolation(scanLines0, scanOr0, scanDir0,
+                                          imageSize)
+    sig0 = apply_KDE(sig0, sm.KDEsigma)
+    count0 = apply_KDE(count0, sm.KDEsigma)
+    scanLines1 = sm.scanLines[1, ...]
+    scanOr1 = sm.scanOr[1, ...]
+    scanDir1 = sm.scanDir[1, :]
+    sig1, count1 = bilinear_interpolation(scanLines1, scanOr1, scanDir1,
+                                          imageSize)
+    sig1 = apply_KDE(sig1, sm.KDEsigma)
+    count1 = apply_KDE(count1, sm.KDEsigma)
 
     # MATLAB results
     m1, m2 = mfile

@@ -1,9 +1,8 @@
 """The file contains tests for the SPmerge02 function
 
-NOTE: For this to work, manually change the 'delta' argument in SPmakeImage
-to 1e-5. The testing dataset from MATLAB was generated with the same
-modification to avoid floating-point errors. To regenerate the MATLAB testing
-dataset, manually add the number to the corresponding line.
+NOTE: DELTA is set to 1e-5. The testing dataset from MATLAB was generated with 
+the same modification to avoid floating-point errors. To regenerate the MATLAB 
+testing dataset, manually add the number to the corresponding line.
 
 Bear in mind the images here DO NOT MAKE SENSE, this is just to check the
 implementation logics based on same-input-same-output principle.
@@ -15,7 +14,9 @@ import pytest
 
 from scanning_drift_corr.SPmerge01linear import SPmerge01linear
 from scanning_drift_corr.SPmerge02 import SPmerge02
-from scanning_drift_corr.SPmerge02_initial import SPmerge02_initial
+
+import scanning_drift_corr.SPmakeImage 
+scanning_drift_corr.SPmakeImage.DELTA = 1e-5
 
 def test_initial_alignment_1en5_delta(MATLAB_simulated_images):
 
