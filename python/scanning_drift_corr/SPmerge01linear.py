@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 from scanning_drift_corr.sMerge import sMerge
 from scanning_drift_corr.SPmakeImage import SPmakeImage
+from scanning_drift_corr.tools import hybrid_correlation
 
 def SPmerge01linear(scanAngles, *images, **kwargs):
     """
@@ -190,7 +191,11 @@ def _get_linear_alignment_score(sm, linearSearch, inds, flagReportProgress,
             sm = SPmakeImage(sm, 1)
 
             # measure alignment score with hybrid correlation
-            Icorr = _correlation(sm, 0, 1)
+            # Icorr = _correlation(sm, 0, 1)
+            img0 = sm.imageTransform[0, ...]
+            img1 = sm.imageTransform[1, ...]
+            padxy = sm.imageSize - sm.img_shape
+            Icorr = hybrid_correlation(img0, img1, padxy=padxy)
             linearSearchScore[a0, a1] = Icorr.max()
 
             # restore the first two image by removing applied linear drift
@@ -206,37 +211,6 @@ def _get_linear_alignment_score(sm, linearSearch, inds, flagReportProgress,
     pbar.close()
 
     return linearSearchScore
-
-def _hanning_weight(sm):
-    """Get the Hanning window for smoothing before Fourier transform
-    """
-
-    # chop off 0 to be consistent with the MATLAB hanningLocal
-    # N = sm.scanLines.shape
-    hanning = np.hanning(sm.nc + 2)[1:-1] * np.hanning(sm.nr + 2)[1:-1][:, None]
-    padw = sm.imageSize - sm.img_shape
-    shifts = np.floor(padw / 2 + 0.5).astype(int)
-    padded = np.pad(hanning, ((0, padw[0]), (0, padw[1])),
-                    mode='constant', constant_values=0)
-    w2 = np.roll(padded, shifts, axis=(0,1))
-
-    return w2
-
-def _correlation(sm, ind1, ind2):
-    """measure alignment score with hybrid correlation, using images indices
-    of ind1 and ind2
-    """
-
-    w2 = _hanning_weight(sm)
-    m1 = np.fft.fft2(w2 * sm.imageTransform[ind1, ...])
-    m2 = np.fft.fft2(w2 * sm.imageTransform[ind2, ...])
-
-    m = m1 * m2.conj()
-    magnitude = np.sqrt(np.abs(m))
-    phase = np.exp(1j*np.angle(m))
-    Icorr = np.fft.ifft2(magnitude * phase).real
-
-    return Icorr
 
 def _shift_origins(sm, dxy):
     """shift origins of the rows by dxy and remake images, where dxy is an
@@ -265,7 +239,10 @@ def _get_initial_alignment(sm):
 
     for k in range(1, sm.numImages):
         # measure alignment score with hybrid correlation
-        Icorr = _correlation(sm, k-1, k)
+        imgA = sm.imageTransform[k-1, ...]
+        imgB = sm.imageTransform[k, ...]
+        padxy = sm.imageSize - sm.img_shape
+        Icorr = hybrid_correlation(imgA, imgB, padxy=padxy)
         dx, dy = np.unravel_index(Icorr.argmax(), Icorr.shape)
 
         # check if it wraps over

@@ -145,3 +145,50 @@ def apply_KDE(img, KDEsigma, rmin=5):
     imgconv = gaussian_filter(img, **fargs)
 
     return imgconv
+
+def hybrid_correlation(img1, img2, padxy=None):
+    """hybrid correlation betweeen two images, assuming the same size
+
+    Parameters
+    ----------
+    img1, img2 : array-like
+        the images to be correlated
+    padxy : array-like
+        the padding (zero) in x and y dimensions. The default is [0, 0].
+
+    Returns
+    -------
+    Icorr : ndarray
+        the correlation between the two images
+    """
+
+    if padxy is None:
+        padxy = np.array([0, 0])
+    else:
+        padxy = np.asarray(padxy)
+
+    # get the row and column of the un-padded image
+    nr, nc = np.asarray(img1.shape) - padxy
+    w2 = _hanning_weight(nr, nc, padxy)
+    m1 = np.fft.fft2(w2 * img1)
+    m2 = np.fft.fft2(w2 * img2)
+
+    m = m1 * m2.conj()
+    magnitude = np.sqrt(np.abs(m))
+    phase = np.exp(1j*np.angle(m))
+    Icorr = np.fft.ifft2(magnitude * phase).real
+
+    return Icorr
+
+def _hanning_weight(nr, nc, padw):
+    """Get the Hanning window for smoothing before Fourier transform
+    """
+
+    # chop off 0 to be consistent with the MATLAB hanningLocal
+    hanning = np.hanning(nc + 2)[1:-1] * np.hanning(nr + 2)[1:-1][:, None]
+    shifts = np.floor(padw / 2 + 0.5).astype(int)
+    padded = np.pad(hanning, ((0, padw[0]), (0, padw[1])),
+                    mode='constant', constant_values=0)
+    w2 = np.roll(padded, shifts, axis=(0,1))
+
+    return w2
