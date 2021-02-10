@@ -74,7 +74,7 @@ def test_result_ignore_edge_4_images_simulated_data(MATLAB_simulated_images):
     scanAngles = (0, 90, 45, 135)
     bd = int(0.25*im1.shape[0]) # the start and end indices for comparison
 
-    sm = SPmerge01linear(scanAngles, im1, im2, im1, im2)
+    sm = SPmerge01linear(scanAngles, im1, im2, im1, im2, parallel=False)
     imgtrans0 = sm.imageTransform[0, ...]
     imgtrans1 = sm.imageTransform[1, ...]
     imgtrans2 = sm.imageTransform[2, ...]

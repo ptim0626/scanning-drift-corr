@@ -2,13 +2,14 @@
 """
 
 import warnings
+from multiprocessing import Pool, cpu_count
 
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from scanning_drift_corr.sMerge import sMerge
-from scanning_drift_corr.SPmakeImage import SPmakeImage
+from scanning_drift_corr.SPmakeImage import SPmakeImage, makeImage
 from scanning_drift_corr.tools import hybrid_correlation
 
 def SPmerge01linear(scanAngles, *images, **kwargs):
@@ -38,6 +39,9 @@ def SPmerge01linear(scanAngles, *images, **kwargs):
         (i.e. too close to 1). The default is 1.125.
     niter : int, optional
         the number of linear drift search to be performed. The default is 2.
+    parallel : bool, optional
+        whether to parallelise the search of linear drifts.
+        The default is True.
     flagReportProgress : bool, optional
         whether to show progress bars or not. Default to True.
     flagPlot : bool, optional
@@ -55,7 +59,7 @@ def SPmerge01linear(scanAngles, *images, **kwargs):
 
     # ignore unknown input arguments
     _args_list = ['linearSearch', 'paddingScale', 'flagReportProgress',
-                  'flagPlot', 'niter']
+                  'parallel', 'flagPlot', 'niter']
     for key in kwargs.keys():
         if key not in _args_list:
             msg = "The argument '{}' is not recognised, and it is ignored."
@@ -67,6 +71,7 @@ def SPmerge01linear(scanAngles, *images, **kwargs):
     paddingScale = kwargs.get('paddingScale', 1.125)
     flagReportProgress = kwargs.get('flagReportProgress', True)
     flagPlot = kwargs.get('flagPlot', True)
+    parallel = kwargs.get('parallel', True)
     niter = kwargs.get('niter', 2)
 
     # initialise the sMerge object
@@ -79,7 +84,7 @@ def SPmerge01linear(scanAngles, *images, **kwargs):
 
     # get linear drift, using the first two images
     xdrift, ydrift = _get_linear_drift(sm, linearSearch, flagReportProgress,
-                                       inds, niter)
+                                       parallel, inds, niter)
     sm.xyLinearDrift = np.array([xdrift, ydrift])
 
     # apply linear drift to all images
@@ -97,7 +102,8 @@ def SPmerge01linear(scanAngles, *images, **kwargs):
 
     return sm
 
-def _get_linear_drift(sm, linearSearch, flagReportProgress, inds, niter=2):
+def _get_linear_drift(sm, linearSearch, flagReportProgress, parallel, inds,
+                      niter=2):
 
     # matrix to store all correlation scores
     scores = np.empty((niter, linearSearch.size, linearSearch.size))
@@ -108,8 +114,8 @@ def _get_linear_drift(sm, linearSearch, flagReportProgress, inds, niter=2):
         # get alignment score for specific drifts, first the linearSearch
         # then the refined value
         score = _get_linear_alignment_score(sm, linearSearch, inds,
-                                            flagReportProgress, xRefine,
-                                            yRefine)
+                                            flagReportProgress, parallel,
+                                            xRefine, yRefine)
 
         # record the score for this set of drift
         scores[k, ...] = score
@@ -123,7 +129,8 @@ def _get_linear_drift(sm, linearSearch, flagReportProgress, inds, niter=2):
 
     # get final score
     score = _get_linear_alignment_score(sm, linearSearch, inds,
-                                        flagReportProgress, xRefine, yRefine)
+                                        flagReportProgress, parallel,
+                                        xRefine, yRefine)
     scores[niter-1, ...] = score
     sm.linearSearchScores = scores
 
@@ -140,7 +147,7 @@ def _get_linear_drift(sm, linearSearch, flagReportProgress, inds, niter=2):
     return xdrift, ydrift
 
 def _get_linear_alignment_score(sm, linearSearch, inds, flagReportProgress,
-                                xcoord=None, ycoord=None):
+                                parallel, xcoord=None, ycoord=None):
     """Perform linear alignment
 
     Parameters
@@ -173,6 +180,91 @@ def _get_linear_alignment_score(sm, linearSearch, inds, flagReportProgress,
     yDrift, xDrift = np.meshgrid(ycoord, xcoord)
     linearSearchScore = np.zeros((linearSearch.size, linearSearch.size))
 
+    if parallel:
+        # the tasks include all shifted scanline origins by different shifts
+        tasks = []
+        for a0 in range(linearSearch.size):
+            for a1 in range(linearSearch.size):
+                xyShift = np.hstack([inds*xDrift[a0,a1], inds*yDrift[a0,a1]])
+                shiftedOr = sm.scanOr[:2, ...] + xyShift.T
+                tasks.append([shiftedOr, a0, a1])
+
+        # set global variables to avoid duplication in every worker
+        _set_global_sMerge_obj(sm)
+
+        linearSearchScore = _parallel_search(linearSearch,
+                                             flagReportProgress, tasks)
+    else:
+        # perform serial search
+        linearSearchScore = _serial_search(sm, linearSearch,
+                                           flagReportProgress, inds,
+                                           xDrift, yDrift)
+
+    return linearSearchScore
+
+def _set_global_sMerge_obj(sm):
+    """Do not want to copy duplicate data in each worker
+    Make global variables for the workers to use
+    """
+    global Gscanline01, GscanDir01, GimageSize, GKDEsigma, Gimg_shape
+
+    Gscanline01 = sm.scanLines[:2, ...]
+    GscanDir01 = sm.scanDir[:2, :]
+    GimageSize = sm.imageSize
+    GKDEsigma = sm.KDEsigma
+    Gimg_shape = sm.img_shape
+
+    return
+
+def _makeimage(task):
+    """determine the correlation score for this particular shifted origins
+    a0, a1 records the index of the drift
+    """
+
+    shiftedScanOr, a0, a1 = task
+
+    # generate trial images after applying specific drifts
+    img0 = makeImage(Gscanline01[0,...], shiftedScanOr[0,...],
+                     GscanDir01[0,:], GimageSize, GKDEsigma)
+    img1 = makeImage(Gscanline01[1,...], shiftedScanOr[1,...],
+                     GscanDir01[1,:], GimageSize, GKDEsigma)
+
+    # measure alignment score with hybrid correlation
+    padxy = GimageSize - Gimg_shape
+    Icorr = hybrid_correlation(img0, img1, padxy=padxy)
+    searchScore = Icorr.max()
+
+    return searchScore, a0, a1
+
+def _parallel_search(linearSearch, flagReportProgress, tasks):
+    """parallelise the search of linear drfit by creating workers
+    """
+
+    linearSearchScore = np.zeros((linearSearch.size, linearSearch.size))
+
+    # create progress bar
+    pbar = tqdm(total=linearSearch.size**2, desc='Linear Drift Search',
+            leave=False, disable=not flagReportProgress)
+
+    with Pool(cpu_count()) as pool:
+        for ret in pool.imap_unordered(_makeimage, tasks, chunksize=1):
+            searchScore, a0, a1 = ret
+            linearSearchScore[a0, a1] = searchScore
+
+            # update progress
+            pbar.update(1)
+
+    # close progress bar
+    pbar.close()
+
+    return linearSearchScore
+
+def _serial_search(sm, linearSearch, flagReportProgress, inds, xDrift, yDrift):
+    """serial search of linear drfit
+    """
+
+    linearSearchScore = np.zeros((linearSearch.size, linearSearch.size))
+
     # create progress bar for nested for loop
     pbar = tqdm(total=linearSearch.size**2, desc='Linear Drift Search',
                 leave=False, disable=not flagReportProgress)
@@ -191,7 +283,6 @@ def _get_linear_alignment_score(sm, linearSearch, inds, flagReportProgress,
             sm = SPmakeImage(sm, 1)
 
             # measure alignment score with hybrid correlation
-            # Icorr = _correlation(sm, 0, 1)
             img0 = sm.imageTransform[0, ...]
             img1 = sm.imageTransform[1, ...]
             padxy = sm.imageSize - sm.img_shape
