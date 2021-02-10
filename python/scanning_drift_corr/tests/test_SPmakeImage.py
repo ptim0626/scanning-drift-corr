@@ -17,9 +17,12 @@ def test_transformed_image_small_delta_matrix(angles, mfile, small_delta_matrix)
     scanAngles = angles
     sm = sMerge(scanAngles, small_delta_matrix)
 
+    linearSearch = np.linspace(-0.02, 0.02, num=2*2+1) * sm.nr
+    inds = np.linspace(-0.5, 0.5, num=sm.nr)[:, None]
+
     # use a particular xyShift [1,3], match the testSPmakeimage func (2,4)
-    yDrift, xDrift = np.meshgrid(sm.linearSearch, sm.linearSearch)
-    xyShift = np.hstack([sm.inds*xDrift[1,3], sm.inds*yDrift[1,3]])
+    yDrift, xDrift = np.meshgrid(linearSearch, linearSearch)
+    xyShift = np.hstack([inds*xDrift[1,3], inds*yDrift[1,3]])
     sm.scanOr[:2, ...] += xyShift.T
 
     # Generate trial images
@@ -48,9 +51,12 @@ def test_after_bilinear_interpolation_angle_30_120(small_delta_matrix):
     scanAngles = (30, 120)
     sm = sMerge(scanAngles, small_delta_matrix)
 
+    linearSearch = np.linspace(-0.02, 0.02, num=2*2+1) * sm.nr
+    inds = np.linspace(-0.5, 0.5, num=sm.nr)[:, None]
+
     # use a particular xyShift [1,3], match the testSPmakeimage func (2,4)
-    yDrift, xDrift = np.meshgrid(sm.linearSearch, sm.linearSearch)
-    xyShift = np.hstack([sm.inds*xDrift[1,3], sm.inds*yDrift[1,3]])
+    yDrift, xDrift = np.meshgrid(linearSearch, linearSearch)
+    xyShift = np.hstack([inds*xDrift[1,3], inds*yDrift[1,3]])
     sm.scanOr[:2, ...] += xyShift.T
 
     # perform bilinear interpolation
@@ -75,9 +81,12 @@ def test_after_bilinear_interpolation_KDE_angle_30_120(small_delta_matrix):
     scanAngles = (30, 120)
     sm = sMerge(scanAngles, small_delta_matrix)
 
+    linearSearch = np.linspace(-0.02, 0.02, num=2*2+1) * sm.nr
+    inds = np.linspace(-0.5, 0.5, num=sm.nr)[:, None]
+
     # use a particular xyShift [1,3], match the testSPmakeimage func (2,4)
-    yDrift, xDrift = np.meshgrid(sm.linearSearch, sm.linearSearch)
-    xyShift = np.hstack([sm.inds*xDrift[1,3], sm.inds*yDrift[1,3]])
+    yDrift, xDrift = np.meshgrid(linearSearch, linearSearch)
+    xyShift = np.hstack([inds*xDrift[1,3], inds*yDrift[1,3]])
     sm.scanOr[:2, ...] += xyShift.T
 
     # perform bilinear interpolation and apply KDE
@@ -106,9 +115,12 @@ def test_sub_angle_30_120(small_delta_matrix):
     scanAngles = (30, 120)
     sm = sMerge(scanAngles, small_delta_matrix)
 
+    linearSearch = np.linspace(-0.02, 0.02, num=2*2+1) * sm.nr
+    inds = np.linspace(-0.5, 0.5, num=sm.nr)[:, None]
+
     # use a particular xyShift [1,3], match the testSPmakeimage func (2,4)
-    yDrift, xDrift = np.meshgrid(sm.linearSearch, sm.linearSearch)
-    xyShift = np.hstack([sm.inds*xDrift[1,3], sm.inds*yDrift[1,3]])
+    yDrift, xDrift = np.meshgrid(linearSearch, linearSearch)
+    xyShift = np.hstack([inds*xDrift[1,3], inds*yDrift[1,3]])
     sm.scanOr[:2, ...] += xyShift.T
 
     # perform bilinear interpolation
@@ -137,9 +149,12 @@ def test_after_bilinear_interpolation_simulated_data(angles, mfile, MATLAB_simul
     scanAngles = angles
     sm = sMerge(scanAngles, MATLAB_simulated_images)
 
+    linearSearch = np.linspace(-0.02, 0.02, num=2*2+1) * sm.nr
+    inds = np.linspace(-0.5, 0.5, num=sm.nr)[:, None]
+
     # use a particular xyShift [1,3], match the testSPmakeimage func (2,4)
-    yDrift, xDrift = np.meshgrid(sm.linearSearch, sm.linearSearch)
-    xyShift = np.hstack([sm.inds*xDrift[1,3], sm.inds*yDrift[1,3]])
+    yDrift, xDrift = np.meshgrid(linearSearch, linearSearch)
+    xyShift = np.hstack([inds*xDrift[1,3], inds*yDrift[1,3]])
     sm.scanOr[:2, ...] += xyShift.T
 
     # perform bilinear interpolation and apply KDE
@@ -169,9 +184,12 @@ def test_after_bilinear_interpolation_KDE_simulated_data(angles, mfile, MATLAB_s
     scanAngles = angles
     sm = sMerge(scanAngles, MATLAB_simulated_images)
 
+    linearSearch = np.linspace(-0.02, 0.02, num=2*2+1) * sm.nr
+    inds = np.linspace(-0.5, 0.5, num=sm.nr)[:, None]
+
     # use a particular xyShift [1,3], match the testSPmakeimage func (2,4)
-    yDrift, xDrift = np.meshgrid(sm.linearSearch, sm.linearSearch)
-    xyShift = np.hstack([sm.inds*xDrift[1,3], sm.inds*yDrift[1,3]])
+    yDrift, xDrift = np.meshgrid(linearSearch, linearSearch)
+    xyShift = np.hstack([inds*xDrift[1,3], inds*yDrift[1,3]])
     sm.scanOr[:2, ...] += xyShift.T
 
     # perform bilinear interpolation and apply KDE
