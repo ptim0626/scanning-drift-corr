@@ -65,7 +65,9 @@ def SPmerge02_final(sm, scanOrStep, **kwargs):
     for k in range(sm.numImages):
         # get alignment image for the current image
         imageAlign = _get_reference_image(sm, k, densityCutoff)
-
+        imgAgn_sz = imageAlign.shape
+        imageAlign = imageAlign.ravel()
+    
         # If ordering is used as a condition, determine parametric positions
         if flagPointOrder:
             # Use vector perpendicular to scan direction (negative 90 deg)
@@ -89,8 +91,8 @@ def SPmerge02_final(sm, scanOrStep, **kwargs):
             raw_scanline = sm.scanLines[k, m, :]
             for p in range(dxy.shape[1]):
                 torigin = orTest[:, p]
-                score[p] = _get_test_origin_score(sm, imageAlign, torigin,
-                                                  k, raw_scanline)
+                score[p] = _get_test_origin_score(sm, imageAlign, imgAgn_sz, 
+                                                  torigin, k, raw_scanline)
 
             # Note that if moving origin does not change score, dxy = (0,0)
             # will be selected (ind = 0).
@@ -159,7 +161,7 @@ def _origin_ordering(sm, origin, IndOr, dxy, step, nn, vParam):
 
     return moved_origin
 
-def _get_test_origin_score(sm, imageRef, torigin, IndImg, scanline):
+def _get_test_origin_score(sm, imageRef, imgRef_sz, torigin, IndImg, scanline):
     """Get interpolated scanline from moved origins and compare its with
     raw scanline for scoring
     """
@@ -181,27 +183,24 @@ def _get_test_origin_score(sm, imageRef, torigin, IndImg, scanline):
     dy = yInd - yF
 
     # score for the p test origin for this scanline
-    score = _calcScore(imageRef, xF, yF, dx, dy, scanline)
+    score = _calcScore(imageRef, imgRef_sz, xF, yF, dx, dy, scanline)
 
     return score
 
-def _calcScore(image, xF, yF, dx, dy, intMeas):
+def _calcScore(image_ravel, imgsz, xF, yF, dx, dy, intMeas):
     """Calculate score between a reference and interpolated line
     """
-    imgsz = image.shape
-
+    
     # same as ravel_multi_index but quicker, why?
     rind1 = yF + xF*imgsz[-1]
     rind2 = yF + (xF+1)*imgsz[-1]
     rind3 = (yF+1) + xF*imgsz[-1]
     rind4 = (yF+1) + (xF+1)*imgsz[-1]
 
-    int1 = image.ravel()[rind1] * (1-dx) * (1-dy)
-    int2 = image.ravel()[rind2] * dx * (1-dy)
-    int3 = image.ravel()[rind3] * (1-dx) * dy
-    int4 = image.ravel()[rind4] * dx * dy
-
-    imageSample = int1 + int2 + int3 + int4
+    imageSample = image_ravel[rind1] * (1-dx) * (1-dy) +\
+                  image_ravel[rind2] * dx * (1-dy) +\
+                  image_ravel[rind3] * (1-dx) * dy +\
+                  image_ravel[rind4] * dx * dy
 
     score = np.abs(imageSample - intMeas).sum()
 

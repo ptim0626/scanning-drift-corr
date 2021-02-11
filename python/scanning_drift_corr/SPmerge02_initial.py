@@ -45,6 +45,7 @@ def SPmerge02_initial(sm, **kwargs):
     for k in range(sm.numImages):
         # get alignment image for the current image, based on orthogonality
         imageAlign = _get_reference_image(sm, k, densityCutoff)
+        imageAlign = imageAlign.ravel()
 
         # align origins and get the step size
         dOr = sm.scanOr[k, :, 1:] - sm.scanOr[k, :, :-1]
@@ -159,6 +160,6 @@ def _get_score(sm, imageAlign, xyOr, k, xymove, raw_scanline):
     rInd = nyInd + nxInd*sm.imageSize[-1]
 
     # calculate the score after moving the scanline
-    score = np.abs(imageAlign.ravel()[rInd] - raw_scanline).sum()
+    score = np.abs(imageAlign[rInd] - raw_scanline).sum()
 
     return score
