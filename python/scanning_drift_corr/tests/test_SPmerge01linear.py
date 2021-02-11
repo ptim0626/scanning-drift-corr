@@ -2,8 +2,9 @@ import numpy as np
 import scipy.io as sio
 import pytest
 
-from scanning_drift_corr.SPmerge01linear import SPmerge01linear
-
+from scanning_drift_corr.SPmerge01linear import SPmerge01linear, _get_linear_drift
+from scanning_drift_corr.sMerge import sMerge
+from scanning_drift_corr.tools import _hanning_weight
 
 def test_no_provided_image():
     scanAngles = (30, 120)
@@ -129,3 +130,45 @@ def test_result_small_delta_rectangle(small_delta_rectangle):
     assert np.isclose(imgden0, imgden0_m).all()
     assert np.isclose(imgden1, imgden1_m).all()
     assert np.isclose(scanOr, scanOr_m).all()
+
+def test_get_linear_drift(small_delta_matrix):
+    im1, im2 = small_delta_matrix
+
+    # set default values or from input arguments
+    linearSearch = np.linspace(-0.02, 0.02, num=2*2+1)
+    paddingScale = 1.125
+    flagReportProgress = True
+    parallel = True
+    niter = 2
+
+    # initialise the sMerge object
+    scanAngles = (0, 90)
+    sm = sMerge(scanAngles, (im1, im2),  paddingScale=paddingScale)
+
+    # get testing linear drifts
+    linearSearch *= sm.nr
+    inds = np.linspace(-0.5, 0.5, num=sm.nr)[:, None]
+
+    # get linear drift, using the first two images
+    xdrift, ydrift = _get_linear_drift(sm, linearSearch, flagReportProgress,
+                                       parallel, inds, niter)
+
+    mstruct = sio.loadmat('matlab_result/sMerge_linalig_small_delta_provide_xycoord.mat')
+    score_m = mstruct['score']
+    xdrift_m, ydrift_m = mstruct['drifts'][0]
+
+    assert np.isclose(sm.linearSearchScores[-1,...], score_m).all()
+    assert np.isclose(xdrift, xdrift_m).all()
+    assert np.isclose(ydrift, ydrift_m).all()
+
+def test_hanning_weights(small_delta_matrix_sm):
+    sm = small_delta_matrix_sm
+
+    padxy = sm.imageSize - sm.img_shape
+    nr, nc = sm.img_shape
+    hw = _hanning_weight(nr, nc, padxy)
+
+    mstruct = sio.loadmat('matlab_result/sMerge_hanning_weights_small_delta.mat')
+    hw_m = mstruct['w2']
+
+    assert np.isclose(hw, hw_m).all()
