@@ -295,9 +295,6 @@ def _serial_search(sm, linearSearch, flagReportProgress, inds, xDrift, yDrift):
             # update progress
             pbar.update(1)
 
-        # update progress
-        pbar.update(1)
-
     # close the progress bar of the nested for loop
     pbar.close()
 
