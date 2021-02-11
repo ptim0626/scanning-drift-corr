@@ -171,8 +171,8 @@ def _get_test_origin_score(sm, imageRef, torigin, IndImg, scanline):
     yInd = yInd + t*sm.scanDir[IndImg, 1]
 
     # Prevent pixels from leaving image boundaries
-    xInd = np.clip(xInd, 0, sm.imageSize[0]-2).ravel()
-    yInd = np.clip(yInd, 0, sm.imageSize[1]-2).ravel()
+    xInd = np.core.umath.clip(xInd, 0, sm.imageSize[0]-2).ravel()
+    yInd = np.core.umath.clip(yInd, 0, sm.imageSize[1]-2).ravel()
 
     # Bilinear coordinates
     xF = np.floor(xInd).astype(int)

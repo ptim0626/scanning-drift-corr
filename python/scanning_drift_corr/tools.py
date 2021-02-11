@@ -79,8 +79,8 @@ def bilinear_interpolation(scanLines, scanOr, scanDir, imageSize,
         (t*scanDir[1])*upsampleFactor
 
     # Prevent pixels from leaving image boundaries
-    xInd = np.clip(xInd, 0, (imageSize[0]*upsampleFactor)-2).ravel()
-    yInd = np.clip(yInd, 0, (imageSize[1]*upsampleFactor)-2).ravel()
+    xInd = np.core.umath.clip(xInd, 0, (imageSize[0]*upsampleFactor)-2).ravel()
+    yInd = np.core.umath.clip(yInd, 0, (imageSize[1]*upsampleFactor)-2).ravel()
 
     imgsize = imageSize*upsampleFactor
     # Convert to bilinear interpolants and weights
