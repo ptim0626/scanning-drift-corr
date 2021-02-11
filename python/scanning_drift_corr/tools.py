@@ -94,8 +94,10 @@ def bilinear_interpolation(scanLines, scanOr, scanDir, imageSize,
     dy = yInd - yIndF
 
     # indAll in MATLAB is from sub2ind
+    # instead of np.ravel_multi_index((xAll, yAll), imgsize)
+    # plain calculation is quicker, why?
     w = np.vstack([(1-dx)*(1-dy), dx*(1-dy), (1-dx)*dy, dx*dy])
-    indAll = np.ravel_multi_index((xAll, yAll), imgsize)
+    indAll = yAll + xAll*imgsize[-1]
 
     # get the active scan line from the raw image
     image = scanLines[indLines, :]

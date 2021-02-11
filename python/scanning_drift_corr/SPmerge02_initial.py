@@ -154,7 +154,9 @@ def _get_score(sm, imageAlign, xyOr, k, xymove, raw_scanline):
     # Prevent pixels from leaving image boundaries
     nxInd = np.core.umath.clip(nxInd, 0, sm.imageSize[0]-2).ravel()
     nyInd = np.core.umath.clip(nyInd, 0, sm.imageSize[1]-2).ravel()    
-    rInd = np.ravel_multi_index((nxInd, nyInd), sm.imageSize)
+    # same as np.ravel_multi_index((nxInd, nyInd), sm.imageSize)
+    # but quicker, why?
+    rInd = nyInd + nxInd*sm.imageSize[-1]
 
     # calculate the score after moving the scanline
     score = np.abs(imageAlign.ravel()[rInd] - raw_scanline).sum()

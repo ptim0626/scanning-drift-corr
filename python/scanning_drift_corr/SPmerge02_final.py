@@ -190,10 +190,11 @@ def _calcScore(image, xF, yF, dx, dy, intMeas):
     """
     imgsz = image.shape
 
-    rind1 = np.ravel_multi_index((xF, yF), imgsz)
-    rind2 = np.ravel_multi_index((xF+1, yF), imgsz)
-    rind3 = np.ravel_multi_index((xF, yF+1), imgsz)
-    rind4 = np.ravel_multi_index((xF+1, yF+1), imgsz)
+    # same as ravel_multi_index but quicker, why?
+    rind1 = yF + xF*imgsz[-1]
+    rind2 = yF + (xF+1)*imgsz[-1]
+    rind3 = (yF+1) + xF*imgsz[-1]
+    rind4 = (yF+1) + (xF+1)*imgsz[-1]
 
     int1 = image.ravel()[rind1] * (1-dx) * (1-dy)
     int2 = image.ravel()[rind2] * dx * (1-dy)
