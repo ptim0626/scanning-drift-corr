@@ -197,10 +197,10 @@ def _calcScore(image_ravel, imgsz, xF, yF, dx, dy, intMeas):
     rind3 = (yF+1) + xF*imgsz[-1]
     rind4 = (yF+1) + (xF+1)*imgsz[-1]
 
-    imageSample = image_ravel[rind1] * (1-dx) * (1-dy) +\
-                  image_ravel[rind2] * dx * (1-dy) +\
-                  image_ravel[rind3] * (1-dx) * dy +\
-                  image_ravel[rind4] * dx * dy
+    dx1 = 1 - dx
+    dy1 = 1 - dy
+    imageSample = image_ravel[rind1]*dx1*dy1 + image_ravel[rind2]*dx*dy1 +\
+                  image_ravel[rind3]*dx1*dy + image_ravel[rind4]*dx*dy    
 
     score = np.abs(imageSample - intMeas).sum()
 
