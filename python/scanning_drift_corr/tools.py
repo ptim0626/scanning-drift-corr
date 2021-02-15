@@ -78,6 +78,11 @@ def bilinear_interpolation(scanLines, scanOr, scanDir, imageSize,
     yInd = y0*upsampleFactor + (upsampleFactor-1)/2 +\
         (t*scanDir[1])*upsampleFactor
 
+    # initialise empty array
+    w = np.empty((4, xInd.size), dtype=float)
+    xAll = np.empty((4, xInd.size), dtype=int)
+    yAll = np.empty((4, xInd.size), dtype=int)
+
     # Prevent pixels from leaving image boundaries
     xInd = np.core.umath.clip(xInd, 0, (imageSize[0]*upsampleFactor)-2).ravel()
     yInd = np.core.umath.clip(yInd, 0, (imageSize[1]*upsampleFactor)-2).ravel()
@@ -88,16 +93,33 @@ def bilinear_interpolation(scanLines, scanOr, scanDir, imageSize,
     # the image which as are column vec (column size is raw data size)
     xIndF = np.floor(xInd).astype(int)
     yIndF = np.floor(yInd).astype(int)
-    xAll = np.vstack([xIndF, xIndF+1, xIndF, xIndF+1])
-    yAll = np.vstack([yIndF, yIndF, yIndF+1, yIndF+1])
+    
+    # remove vstack
+    # xAll = np.vstack([xIndF, xIndF+1, xIndF, xIndF+1])
+    # yAll = np.vstack([yIndF, yIndF, yIndF+1, yIndF+1])
+    xAll[0, :] = xIndF
+    xAll[1, :] = xIndF+1
+    xAll[2, :] = xIndF
+    xAll[3, :] = xIndF+1
+    yAll[0, :] = yIndF
+    yAll[1, :] = yIndF
+    yAll[2, :] = yIndF+1
+    yAll[3, :] = yIndF+1
     dx = xInd - xIndF
     dy = yInd - yIndF
 
+    # remove vstack    
+    # w = np.vstack([(1-dx)*(1-dy), dx*(1-dy), (1-dx)*dy, dx*dy])
+    w[0, :] = (1-dx)*(1-dy)
+    w[1, :] = dx*(1-dy)
+    w[2, :] = (1-dx)*dy
+    w[3, :] = dx*dy
+        
     # indAll in MATLAB is from sub2ind
     # instead of np.ravel_multi_index((xAll, yAll), imgsize)
-    # plain calculation is quicker, why?
-    w = np.vstack([(1-dx)*(1-dy), dx*(1-dy), (1-dx)*dy, dx*dy])
+    # plain calculation is quicker, why?        
     indAll = yAll + xAll*imgsize[-1]
+    indAll_ravel = indAll.ravel()
 
     # get the active scan line from the raw image
     image = scanLines[indLines, :]
@@ -107,10 +129,10 @@ def bilinear_interpolation(scanLines, scanOr, scanDir, imageSize,
     wcount = w
 
     # Generate image and density
-    sig = np.bincount(indAll.ravel(),
+    sig = np.bincount(indAll_ravel,
                       weights=wsig.ravel(),
                       minlength=imgsize.prod()).reshape(imgsize)
-    count = np.bincount(indAll.ravel(),
+    count = np.bincount(indAll_ravel,
                         weights=wcount.ravel(),
                         minlength=imgsize.prod()).reshape(imgsize)
 
