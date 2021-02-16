@@ -2,6 +2,7 @@
 """
 
 import warnings
+from multiprocessing import Pool, cpu_count
 
 import numpy as np
 
@@ -25,6 +26,9 @@ def SPmerge02_final(sm, scanOrStep, **kwargs):
     flagPointOrder : bool, optional
         use this flag to force origins to be ordered, i.e. disallow points
         from changing their order. Default to True.
+    parallel : bool, optional
+        whether to parallelise the alignment for scan lines.
+        The default is True.
 
     Returns
     -------
@@ -39,7 +43,7 @@ def SPmerge02_final(sm, scanOrStep, **kwargs):
 
     # ignore unknown input arguments
     _args_list = ['densityCutoff', 'pixelsMovedThreshold', 'stepSizeReduce',
-                  'flagPointOrder']
+                  'flagPointOrder', 'parallel']
     for key in kwargs.keys():
         if key not in _args_list:
             msg = "The argument '{}' is not recognised, and it is ignored."
@@ -56,6 +60,7 @@ def SPmerge02_final(sm, scanOrStep, **kwargs):
     pixelsMovedThreshold = kwargs.get('pixelsMovedThreshold', 0.1)
     stepSizeReduce = kwargs.get('stepSizeReduce', 1/2)
     flagPointOrder = kwargs.get('flagPointOrder', True)
+    parallel = kwargs.get('parallel', True)
 
     # Reset pixels moved count
     pixelsMoved = 0
@@ -67,45 +72,33 @@ def SPmerge02_final(sm, scanOrStep, **kwargs):
         imageAlign = _get_reference_image(sm, k, densityCutoff)
         imgAgn_sz = imageAlign.shape
         imageAlign = imageAlign.ravel()
-    
+
         # If ordering is used as a condition, determine parametric positions
         if flagPointOrder:
             # Use vector perpendicular to scan direction (negative 90 deg)
             nn = np.array([sm.scanDir[k, 1], -sm.scanDir[k, 0]])
             vParam = nn[0]*sm.scanOr[k, 0, :] + nn[1]*sm.scanOr[k, 1, :]
+        else:
+            nn = None
+            vParam = None
 
-        # Loop through each scanline and perform alignment
-        for m in range(sm.nr):
-            # Refine score by moving the origin (by dxy*step) of this scanline
-            # If required, force ordering of points
-            origin = sm.scanOr[k, :, m]
-            step = scanOrStep[k, m]
-            if flagPointOrder:
-                orTest = _origin_ordering(sm, origin, m, dxy, step, nn, vParam)
-            else:
-                orTest = origin[:, None] + dxy*step
+        if parallel:
+            # the tasks include all scanline in the current image
+            tasks = []
+            for m in range(sm.nr):
+                tasks.append([k, m])
 
-            # Loop through the test origins
-            # score each of them against the reference image (imageAlign)
-            score = np.zeros(dxy.shape[1])
-            raw_scanline = sm.scanLines[k, m, :]
-            for p in range(dxy.shape[1]):
-                torigin = orTest[:, p]
-                score[p] = _get_test_origin_score(sm, imageAlign, imgAgn_sz, 
-                                                  torigin, k, raw_scanline)
+            # set global variables, act like shared data
+            _set_global_objs(sm, scanOrStep, flagPointOrder, dxy, nn, vParam,
+                             imageAlign, imgAgn_sz)
 
-            # Note that if moving origin does not change score, dxy = (0,0)
-            # will be selected (ind = 0).
-            ind = np.argmin(score)
-            if ind == 0:
-                # Reduce the step size for this origin
-                scanOrStep[k, m] *= stepSizeReduce
-            else:
-                pshift = np.linalg.norm(orTest[:,ind] - sm.scanOr[k, :, m])
-                pixelsMoved += pshift
-                sm.scanOr[k, :, m] = orTest[:, ind]
-
-            #TODO add progress bar tqdm later
+            pixelsMoved = _parallel_align(tasks, sm, scanOrStep,
+                                          stepSizeReduce, pixelsMoved)
+        else:
+            # perform serial alignmment
+            pixelsMoved = _serial_align(sm, scanOrStep, k, flagPointOrder,
+                                        dxy, nn, vParam, imageAlign,
+                                        imgAgn_sz, stepSizeReduce, pixelsMoved)
 
     # If pixels moved is below threshold, halt refinement
     if (pixelsMoved/sm.numImages) < pixelsMovedThreshold:
@@ -115,6 +108,85 @@ def SPmerge02_final(sm, scanOrStep, **kwargs):
 
     return stopRefine
 
+def _set_global_objs(sm, scanOrStep, flagPointOrder, dxy, nn, vParam,
+                     imageAlign, imgAgn_sz):
+    """like shared memory
+    """
+    global Gsm, GscanOrStep, GflagPointOrder, Gdxy, Gnn, GvParam, GimageAlign
+    global GimgAgn_sz
+
+    Gsm = sm
+    GscanOrStep = scanOrStep
+    GflagPointOrder = flagPointOrder
+    Gdxy = dxy
+    Gnn = nn
+    GvParam = vParam
+    GimageAlign = imageAlign
+    GimgAgn_sz = imgAgn_sz
+
+    return
+
+def _do_align(task):
+    """perform alginment for a specific scan m in image k
+    """
+
+    k, m = task
+
+    # Refine score by moving the origin (by dxy*step) of this scanline
+    # If required, force ordering of points
+    origin = Gsm.scanOr[k, :, m]
+    step = GscanOrStep[k, m]
+    orTest = _origin_ordering(Gsm, origin, m, Gdxy, step, Gnn, GvParam,
+                              GflagPointOrder)
+
+    # Loop through the test origins
+    # score each of them against the reference image (imageAlign)
+    raw_scanline = Gsm.scanLines[k, m, :]
+    ind, norigin = _test_origins(Gsm, orTest, k, Gdxy, GimageAlign,
+                                 GimgAgn_sz, raw_scanline)
+
+    return ind, norigin, k, m
+
+def _parallel_align(tasks, sm, scanOrStep, stepSizeReduce, pixelsMoved):
+    """parallelise the alignment of each scan lines by creating workers
+    """
+
+    chsz = sm.nr // cpu_count() + 1
+    with Pool(cpu_count()) as pool:
+        for ret in pool.imap_unordered(_do_align, tasks, chunksize=chsz):
+            ind, norigin, k, m  = ret
+
+            # record the pixel shift
+            pixelsMoved = _move_origin(sm, k, m, scanOrStep, stepSizeReduce,
+                                       ind, norigin, pixelsMoved)
+
+    return pixelsMoved
+
+def _serial_align(sm, scanOrStep, k, flagPointOrder, dxy, nn, vParam,
+                  imageAlign, imgAgn_sz, stepSizeReduce, pixelsMoved):
+    """serial alginment of each scan lines
+    """
+
+    # Loop through each scanline and perform alignment
+    for m in range(sm.nr):
+        # Refine score by moving the origin (by dxy*step) of this scanline
+        # If required, force ordering of points
+        origin = sm.scanOr[k, :, m]
+        step = scanOrStep[k, m]
+        orTest = _origin_ordering(sm, origin, m, dxy, step, nn, vParam,
+                                  flagPointOrder)
+
+        # Loop through the test origins
+        # score each of them against the reference image (imageAlign)
+        raw_scanline = sm.scanLines[k, m, :]
+        ind, norigin = _test_origins(sm, orTest, k, dxy,
+                                    imageAlign, imgAgn_sz, raw_scanline)
+
+        # record the pixel shift
+        pixelsMoved = _move_origin(sm, k, m, scanOrStep, stepSizeReduce,
+                                   ind, norigin, pixelsMoved)
+
+    return pixelsMoved
 
 def _get_reference_image(sm, k, densityCutoff):
     """Generate alignment image, mean of all other scanline datasets,
@@ -136,30 +208,69 @@ def _get_reference_image(sm, k, densityCutoff):
 
     return imageAlign
 
-def _origin_ordering(sm, origin, IndOr, dxy, step, nn, vParam):
-    """Get the moved origin in order from dxy and step
+def _origin_ordering(sm, origin, IndOr, dxy, step, nn, vParam, flagPointOrder):
+    """Get the moved origin from dxy and step, order them if required
     """
 
-    moved_origin = origin[:, None] + dxy*step
-    vTest = nn[0]*moved_origin[0, :] + nn[1]*moved_origin[1, :]
+    if flagPointOrder:
+        moved_origin = origin[:, None] + dxy*step
+        vTest = nn[0]*moved_origin[0, :] + nn[1]*moved_origin[1, :]
 
-    if IndOr == 0:
-        # no lower bound?
-        vBound = np.array([-np.inf, vParam[1]])
-    elif IndOr == sm.nr-1:
-        # no upper bound?
-        vBound = np.array([vParam[IndOr-1], np.inf])
+        if IndOr == 0:
+            # no lower bound?
+            vBound = np.array([-np.inf, vParam[1]])
+        elif IndOr == sm.nr-1:
+            # no upper bound?
+            vBound = np.array([vParam[IndOr-1], np.inf])
+        else:
+            vBound = np.array([vParam[IndOr-1], vParam[IndOr+1]])
+
+        # order origins
+        for p in range(dxy.shape[1]):
+            if vTest[p] < vBound[0]:
+                moved_origin[:, p] += nn*(vBound[0]-vTest[p])
+            elif vTest[p] > vBound[1]:
+                moved_origin[:, p] += nn*(vBound[1]-vTest[p])
     else:
-        vBound = np.array([vParam[IndOr-1], vParam[IndOr+1]])
-
-    # order origins
-    for p in range(dxy.shape[1]):
-        if vTest[p] < vBound[0]:
-            moved_origin[:, p] += nn*(vBound[0]-vTest[p])
-        elif vTest[p] > vBound[1]:
-            moved_origin[:, p] += nn*(vBound[1]-vTest[p])
+        moved_origin = origin[:, None] + dxy*step
 
     return moved_origin
+
+def _test_origins(sm, orTest, k, dxy, imageAlign, imgAgn_sz, raw_scanline):
+    """Loop through the test origins, score each of them against the
+    reference image (imageAlign)
+
+    ind is the index of the lowest score, norigin is the selected test origin
+    """
+
+    score = np.zeros(dxy.shape[1])
+    for p in range(dxy.shape[1]):
+        torigin = orTest[:, p]
+        score[p] = _get_test_origin_score(sm, imageAlign, imgAgn_sz,
+                                          torigin, k, raw_scanline)
+
+    # Note that if moving origin does not change score, dxy = (0,0)
+    # will be selected (ind = 0).
+    ind = np.argmin(score)
+    norigin = orTest[:, ind]
+
+    return ind, norigin
+
+def _move_origin(sm, k, m, scanOrStep, stepSizeReduce, ind, norigin,
+                 pixelsMoved):
+    """Move the origin by norigin, record the pixel shift, accumulative,
+    reduce the steps of origin moved if the origin is not moved
+    """
+
+    if ind == 0:
+        # Reduce the step size for this origin
+        scanOrStep[k, m] *= stepSizeReduce
+    else:
+        pshift = np.linalg.norm(norigin - sm.scanOr[k, :, m])
+        pixelsMoved += pshift
+        sm.scanOr[k, :, m] = norigin
+
+    return pixelsMoved
 
 def _get_test_origin_score(sm, imageRef, imgRef_sz, torigin, IndImg, scanline):
     """Get interpolated scanline from moved origins and compare its with
@@ -190,7 +301,7 @@ def _get_test_origin_score(sm, imageRef, imgRef_sz, torigin, IndImg, scanline):
 def _calcScore(image_ravel, imgsz, xF, yF, dx, dy, intMeas):
     """Calculate score between a reference and interpolated line
     """
-    
+
     # same as ravel_multi_index but quicker, why?
     rind1 = yF + xF*imgsz[-1]
     rind2 = yF + (xF+1)*imgsz[-1]
@@ -200,7 +311,7 @@ def _calcScore(image_ravel, imgsz, xF, yF, dx, dy, intMeas):
     dx1 = 1 - dx
     dy1 = 1 - dy
     imageSample = image_ravel[rind1]*dx1*dy1 + image_ravel[rind2]*dx*dy1 +\
-                  image_ravel[rind3]*dx1*dy + image_ravel[rind4]*dx*dy    
+                  image_ravel[rind3]*dx1*dy + image_ravel[rind4]*dx*dy
 
     score = np.abs(imageSample - intMeas).sum()
 

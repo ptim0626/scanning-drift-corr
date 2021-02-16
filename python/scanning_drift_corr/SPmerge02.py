@@ -56,6 +56,9 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
         window sigma in px for smoothing scanline origins. Set this value to
         zero to not use window avg. This window is relative to linear steps.
         Default to 1.
+    parallel : bool, optional
+        whether to parallelise the alignment for scan lines.
+        The default is True.
 
     ------------------ For global phase correlation ------------------
     flagGlobalShift : bool, optional
@@ -86,7 +89,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
     _args_list = ['densityCutoff', 'distStart', 'initialShiftMaximum',
                   'originInitialAverage', 'refineInitialStep',
                   'pixelsMovedThreshold', 'stepSizeReduce', 'flagPointOrder',
-                  'originWindowAverage', 'flagGlobalShift',
+                  'originWindowAverage', 'flagGlobalShift', 'parallel',
                   'flagGlobalShiftIncrease', 'minGlobalShift', 'densityDist',
                   'flagRemakeImage', 'flagPlot', 'flagReportProgress']
     for key in kwargs.keys():
@@ -123,6 +126,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
     stepSizeReduce = kwargs.get('stepSizeReduce', 1/2)
     flagPointOrder = kwargs.get('flagPointOrder', True)
     originWindowAverage = kwargs.get('originWindowAverage', 1)
+    parallel = kwargs.get('parallel', True)
 
     # for global phase correlation
     flagGlobalShift = kwargs.get('flagGlobalShift', False)
@@ -183,7 +187,8 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
                                      densityCutoff=densityCutoff,
                                      pixelsMovedThreshold=pixelsMovedThreshold,
                                      stepSizeReduce=stepSizeReduce,
-                                     flagPointOrder=flagPointOrder)
+                                     flagPointOrder=flagPointOrder,
+                                     parallel=parallel)
 
         # If required, compute moving average of origins using KDE.
         if originWindowAverage > 0:
