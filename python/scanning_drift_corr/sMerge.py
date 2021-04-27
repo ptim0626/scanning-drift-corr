@@ -104,7 +104,7 @@ class sMerge:
 
         # save raw data to scanLines
         if self.isStack:
-            self.scanLines = images
+            self.scanLines = images[0]
         else:
             self.scanLines = np.empty((self.numImages, *self.img_shape))
             for k, im in enumerate(images):
@@ -138,7 +138,7 @@ class sMerge:
             self.isStack = True
             self.img_shape = np.asarray(images.shape[1:])
             self.numImages = images.shape[0]
-        if len(images) > 1:
+        elif len(images) > 1:
             # image sequence
             shapes = np.asarray([arr.shape for arr in images])
             shape_equal = (shapes[0,0] == shapes[:, 0]).all() &\
