@@ -43,6 +43,25 @@ def small_delta_matrix_sm(small_delta_matrix):
     return sm
 
 @pytest.fixture
+def small_delta_matrix_stack():
+    # angle [0,90]
+    n = 9
+
+    im1 = np.ones((n,n))
+    im1[4,6] = 10
+    im1[2,3] = 10
+
+    im2 = np.ones((n,n))
+    im2[5,2] = 10
+    im2[2,4] = 10
+
+    stack = np.empty((2, 9, 9))
+    stack[0, ...] = im1
+    stack[1, ...] = im2
+
+    return stack
+
+@pytest.fixture
 def MATLAB_simulated_images():
     with h5py.File('nonlinear_drift_correction_synthetic_dataset_for_testing.mat', 'r') as f:
         image00deg = np.array(f['image00deg']).T
@@ -57,6 +76,19 @@ def MATLAB_simulated_images_sm(MATLAB_simulated_images):
     sm = sMerge(scanAngles, MATLAB_simulated_images)
 
     return sm
+
+@pytest.fixture
+def MATLAB_simulated_images_stack():
+    with h5py.File('nonlinear_drift_correction_synthetic_dataset_for_testing.mat', 'r') as f:
+        image00deg = np.array(f['image00deg']).T
+        image90deg = np.array(f['image90deg']).T
+        #imageIdeal = np.array(f['imageIdeal']).T
+
+    stack = np.empty((2, 512, 512))
+    stack[0, ...] = image00deg
+    stack[1, ...] = image90deg
+
+    return stack
 
 @pytest.fixture
 def small_delta_rectangle():

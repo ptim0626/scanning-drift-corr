@@ -36,6 +36,29 @@ def test_result_small_delta(small_delta_matrix):
     assert np.isclose(imgden1, imgden1_m).all()
     assert np.isclose(scanOr, scanOr_m).all()
 
+def test_result_small_delta_stack(small_delta_matrix_stack):
+    stack = small_delta_matrix_stack
+    scanAngles = (0, 90)
+
+    sm = SPmerge01linear(scanAngles, stack)
+    imgtrans0 = sm.imageTransform[0, ...]
+    imgtrans1 = sm.imageTransform[1, ...]
+    imgden0 = sm.imageDensity[0, ...]
+    imgden1 = sm.imageDensity[1, ...]
+    scanOr = sm.scanOr
+
+    mstruct = sio.loadmat('matlab_result/SPmerge01linear_result_small_delta.mat')
+    imgtrans0_m = mstruct['it1']
+    imgtrans1_m = mstruct['it2']
+    imgden0_m = mstruct['id1']
+    imgden1_m = mstruct['id2']
+    scanOr_m = mstruct['scOr'].T - 1
+
+    assert np.isclose(imgtrans0, imgtrans0_m).all()
+    assert np.isclose(imgtrans1, imgtrans1_m).all()
+    assert np.isclose(imgden0, imgden0_m).all()
+    assert np.isclose(imgden1, imgden1_m).all()
+    assert np.isclose(scanOr, scanOr_m).all()
 
 @pytest.mark.parametrize('angles, mfile',
                          [((45, 135), 'SPmerge01linear_result_45_135_simulated_data.mat'),
