@@ -64,8 +64,8 @@ class TestInitialisation:
             sMerge(scanAngles, dummy_sequential)
 
     def test_provided_images_shape_not_equal(self):
-        im1 = np.arange(32*32, dtype=np.float).reshape(32,32)
-        im2 = np.arange(33*33, dtype=np.float).reshape(33,33)
+        im1 = np.arange(32*32, dtype=float).reshape(32,32)
+        im2 = np.arange(33*33, dtype=float).reshape(33,33)
         scanAngles = (25, 115)
 
         with pytest.raises(ValueError):

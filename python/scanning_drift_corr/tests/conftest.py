@@ -6,7 +6,7 @@ from scanning_drift_corr.sMerge import sMerge
 
 @pytest.fixture
 def dummy_sequential():
-    im1 = np.arange(32*32, dtype=np.float).reshape(32,32)
+    im1 = np.arange(32*32, dtype=float).reshape(32,32)
     im2 = im1 * 3
     im3 = im1[::-1, :]*2
     im4 = im1[:, ::-1]*4
