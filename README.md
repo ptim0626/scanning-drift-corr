@@ -4,7 +4,7 @@ This package corrects scan distortion by using orthogonal pairs.
 
 **This is the python translation from the code of Colin Ophus. The MATLAB code
 can be found [here](https://github.com/cophus/scanning-drift-corr "Colin Ophus' MATLAB code").
-It can also be found [here][./matlab].  The implementation is based on
+It can also be found [here](./matlab).  The implementation is based on
 [his paper](https://www.sciencedirect.com/science/article/abs/pii/S0304399115300838
 "Correcting nonlinear drift distortion of scanning probe and scanning transmission electron microscopies from image pairs with orthogonal scan directions").**
 
