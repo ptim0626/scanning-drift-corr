@@ -1,2 +1,4 @@
-include README_original.md
+include ./README_original.md
+include ./src/scanning_drift_corr/tests/README.md
+include ./src/scanning_drift_corr/tests/nonlinear_drift_correction_synthetic_dataset_for_testing.mat
 recursive-include examples *.py *.ipynb

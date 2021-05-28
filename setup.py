@@ -23,4 +23,19 @@ classifiers=[
     "Operating System :: OS Independent",
 ],
 python_requires='>=3.7',
+install_requires=[
+    'numpy',
+    'matplotlib',
+    'scipy',
+    'tqdm',
+    ],
+extras_require={'tests': ['pytest']},
+package_data={
+    'tests' : [
+        '*.mat',
+        'matlab_result/*.mat',
+        'matlab_result/SPmerge02/*.mat',
+        'matlab_result/SPmerge03/*.mat',
+        ]
+    }
 )
