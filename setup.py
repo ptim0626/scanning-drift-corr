@@ -16,7 +16,7 @@ project_urls={
     "Bug Tracker": "https://github.com/ptim0626/scanning-drift-corr/issues",
     },
 package_dir={"": "src"},
-packages=setuptools.find_packages(where="src"),
+packages=setuptools.find_packages(where="src", exclude=['*tests*']),
 classifiers=[
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -28,14 +28,12 @@ install_requires=[
     'matplotlib',
     'scipy',
     'tqdm',
+    'h5py',
     ],
 extras_require={'tests': ['pytest']},
 package_data={
-    'tests' : [
-        '*.mat',
-        'matlab_result/*.mat',
-        'matlab_result/SPmerge02/*.mat',
-        'matlab_result/SPmerge03/*.mat',
+    'scanning_drift_corr' : [
+        'tests/nonlinear_drift_correction_synthetic_dataset_for_testing.mat',
         ]
     }
 )
