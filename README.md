@@ -4,7 +4,8 @@ This package corrects scan distortion by using orthogonal pairs.
 
 **This is the python translation from the code of Colin Ophus. The MATLAB code
 can be found [here](https://github.com/cophus/scanning-drift-corr "Colin Ophus' MATLAB code").
-The implementation is based on [his paper](https://www.sciencedirect.com/science/article/abs/pii/S0304399115300838
+It can also be found [here][./matlab].  The implementation is based on
+[his paper](https://www.sciencedirect.com/science/article/abs/pii/S0304399115300838
 "Correcting nonlinear drift distortion of scanning probe and scanning transmission electron microscopies from image pairs with orthogonal scan directions").**
 
 The translation from MATLAB to Python is finished, all `SPmerge01linear`,
@@ -15,7 +16,7 @@ repository](https://github.com/cophus/scanning-drift-corr "Colin Ophus' MATLAB c
 
 The MATLAB-to-Python translation provides a convenient interface where MATLAB
 is not available or Python is the preferred language in your analysis pipeline.
-The initial translation focuses on consistency betweeh the MATLAB and
+The initial translation focuses on consistency between the MATLAB and
 Python version, after ensure the correctness then more changes will be made.
 A certain degree of parallelism is introduced in the Python version.
 

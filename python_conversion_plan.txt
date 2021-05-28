@@ -1,3 +1,0 @@
-
-
-The initial plan is to port the original Matlab code over to python.  Then, add a lot more features!
