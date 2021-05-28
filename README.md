@@ -1,69 +1,41 @@
-# scanning-drift-corr
+# Scan distortion correction
 
-Correction of nonlinear and linear scanning probe artifacts using orthogonal scan pairs.  
+This package corrects scan distortion by using orthogonal pairs.
 
-This method will also work on most time series, though it does not yet implement the fast scan direction correction algorithm.
+**This is the python translation from the code of Colin Ophus. The MATLAB code
+can be found [here](https://github.com/cophus/scanning-drift-corr "Colin Ophus' MATLAB code").
+The implementation is based on [his paper](https://www.sciencedirect.com/science/article/abs/pii/S0304399115300838
+"Correcting nonlinear drift distortion of scanning probe and scanning transmission electron microscopies from image pairs with orthogonal scan directions").**
 
+The translation from MATLAB to Python is finished, all `SPmerge01linear`,
+`SPmerge02` and `SPmerge03` are availabe to use. The usage is pretty much the
+same with MATLAB (see `example.py` or `example.ipynb`). The detail of the usage
+can be found in the original [README](./README_original.md) or the [original
+repository](https://github.com/cophus/scanning-drift-corr "Colin Ophus' MATLAB code").
 
-# Running the code in Matlab
+The MATLAB-to-Python translation provides a convenient interface where MATLAB
+is not available or Python is the preferred language in your analysis pipeline.
+The initial translation focuses on consistency betweeh the MATLAB and
+Python version, after ensure the correctness then more changes will be made.
+A certain degree of parallelism is introduced in the Python version.
 
-Running these command lines should reproduce the included example data in matlab.
+The tests compare output from Python to MATLAB version at different breakpoints,
+the MATLAB version comparing is in `matlab_modified`. Some modifications are
+made during the translation, mainly to address floating-point errors.
 
-First, load the data:
-> load('data_examples/nonlinear_drift_correction_synthetic_dataset_for_testing.mat')
+## Installation
+To install locally in editable mode, run
+```
+pip install -e .
+```
 
-Next, verify the input data has horizontal fast scan directions (i.e. most drift artifacts occur in the vertical / row direction). This can also be easily done using windowed FFT images.
-> figure('Name','Measured Data 0deg');imagesc(image00deg); axis equal off; colormap(gray(256));
-> figure('Name','Measured Data 90deg');imagesc(image90deg); axis equal off; colormap(gray(256));
-Zoom in on these images, note the row-by-row jumps and overall drift.
+## Usage
+After installing, you can try to run `example.py`.  This script illustrates
+basic usage of the Python interface.
 
-The first SPmerge step is to initialize the alignment structure, and perform a search over linear drift vectors (TODO: make this much faster via FFT shear).
-> sMerge = SPmerge01linear([0 90],image00deg,image90deg);
+A Jupyter notebook `example.ipynb` is also available.
 
-Note that the alignment is overall quite poor and shows strong Moire artifacts. The yellow cross shows the reference position for the "wrinkle smoothing" initial alignment step. We should move it to a region of the image with good alignment before running the next step. For example:
-> sMerge.ref = [560 450];
-
-UPDATE - This new version of the code does not perform the "wrinkle smoothing" alignment steps by default!  In order to run some of these iterations, you must specify how many iterations you wish to perform using the third input argument. For example, try:
-> sMerge = SPmerge02(sMerge,0,8);
-
-Much better!  In the previous step, we ran 0 "final alignment" steps and 8 "wrinkle smoothing" steps.  We can now do the main alignment:
-> sMerge = SPmerge02(sMerge);
-
-The above command is equivalent to using sMerge = SPmerge02(sMerge,32); or sMerge = SPmerge02(sMerge,32,0);  Assuming the alignment has converged correctly, we can now generate a final output image:
-> imageFinal = SPmerge03(sMerge);
-
-Other notes - I've found that the new linear drift search finds a good initial alignment for most experimental datasets. This is the motivation behind defaulting to 0 iterations for the "wrinkle smoothing" step. However some long dwell time experiments will have slowly varying drift vectors, and so I've left this algorithm in this code.
-
-The vast majority of bad alignments happen when the scan lines are not horizontal, or the images have a large amound of fast scan error (requires a different algorithm to correct). Most orthogonal image pairs can be well-aligned by playing around with this setting in SPmerge02.m:
-originWindowAverage = 4;
-Setting this value too large will render the algorithm unable to fit local origin shifts, and setting it too small could overfit to noise. The related value for the "wrinkle smoothing" algorithm is:
-originInitialAverage = size(sMerge.scanLines,1) / 16;
-
-The other important parameters to check are those that change the initial guess for the alignment. sMerge.ref for example, or the linear search steps in SPmerge01.m:
-sMerge.linearSearch = linspace(-0.08,0.08,1+2*4);  
-
-It's also worth pointing out that the algoithm requires enough padding around the images to fit all of the image translations - make sure this value in SPmerge01.m is not too small:
-paddingScale = (1+1/2);
-
-If you have image pairs that you are having difficulty with, please feel free to email them to me at clophus@lbl.gov and I would be happy to have a look!
-
-
-
-
-
-## Authors
-
-Colin Ophus
-
-1. Original author of the Matlab code.
-2. Wrote the drift correction paper.
-
-
-
-
-## Publication
-
-A publication describing this method can be found here:
-
-https://doi.org/10.1016/j.ultramic.2015.12.002
+## TODO
+- [x] refactoring of the codes (currently everything flying around)
+- [x] handle rectangular image
 
