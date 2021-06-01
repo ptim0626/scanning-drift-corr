@@ -30,7 +30,8 @@ To install via pip:
 pip install scanning_drift_corr
 ```
 
-To install locally in editable mode, run
+To install locally in editable mode, clone the repository and in the root
+directory run
 ```
 pip install -e .
 ```

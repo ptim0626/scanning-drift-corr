@@ -5,7 +5,7 @@ import h5py
 import scanning_drift_corr.api as sdc
 
 # read the simulated data
-with h5py.File('../src/scanning_drift_corr/tests/nonlinear_drift_correction_synthetic_dataset_for_testing.mat', 'r') as f:
+with h5py.File('../tests/nonlinear_drift_correction_synthetic_dataset_for_testing.mat', 'r') as f:
     image00deg = np.array(f['image00deg']).T
     image90deg = np.array(f['image90deg']).T
     imageIdeal = np.array(f['imageIdeal']).T

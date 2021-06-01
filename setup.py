@@ -34,6 +34,8 @@ extras_require={'tests': ['pytest']},
 package_data={
     'scanning_drift_corr' : [
         'tests/nonlinear_drift_correction_synthetic_dataset_for_testing.mat',
-        ]
-    }
+        'examples/example.py',
+        'examples/example.ipynb',
+        ],
+    },
 )
