@@ -2,7 +2,7 @@
 """
 
 import warnings
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool, Manager, cpu_count
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -181,16 +181,16 @@ def _get_linear_alignment_score(sm, linearSearch, inds, flagReportProgress,
     linearSearchScore = np.zeros((linearSearch.size, linearSearch.size))
 
     if parallel:
+        # set Manager Namespace to avoid duplication in every worker
+        ns = _set_manager_namespace(sm)
+
         # the tasks include all shifted scanline origins by different shifts
         tasks = []
         for a0 in range(linearSearch.size):
             for a1 in range(linearSearch.size):
                 xyShift = np.hstack([inds*xDrift[a0,a1], inds*yDrift[a0,a1]])
                 shiftedOr = sm.scanOr[:2, ...] + xyShift.T
-                tasks.append([shiftedOr, a0, a1])
-
-        # set global variables to avoid duplication in every worker
-        _set_global_sMerge_obj(sm)
+                tasks.append([shiftedOr, a0, a1, ns])
 
         linearSearchScore = _parallel_search(linearSearch,
                                              flagReportProgress, tasks)
@@ -202,35 +202,37 @@ def _get_linear_alignment_score(sm, linearSearch, inds, flagReportProgress,
 
     return linearSearchScore
 
-def _set_global_sMerge_obj(sm):
-    """Do not want to copy duplicate data in each worker
-    Make global variables for the workers to use
+def _set_manager_namespace(sm):
+    """Do not want to copy duplicated data in each worker
+    Make Manager Namespace to hold the reference
     """
-    global Gscanline01, GscanDir01, GimageSize, GKDEsigma, Gimg_shape
 
-    Gscanline01 = sm.scanLines[:2, ...]
-    GscanDir01 = sm.scanDir[:2, :]
-    GimageSize = sm.imageSize
-    GKDEsigma = sm.KDEsigma
-    Gimg_shape = sm.img_shape
+    m = Manager()
+    ns = m.Namespace()
 
-    return
+    ns.Gscanline01 = sm.scanLines[:2, ...]
+    ns.GscanDir01 = sm.scanDir[:2, :]
+    ns.GimageSize = sm.imageSize
+    ns.GKDEsigma = sm.KDEsigma
+    ns.Gimg_shape = sm.img_shape
+
+    return ns
 
 def _makeimage(task):
     """determine the correlation score for this particular shifted origins
     a0, a1 records the index of the drift
     """
 
-    shiftedScanOr, a0, a1 = task
+    shiftedScanOr, a0, a1, ns = task
 
     # generate trial images after applying specific drifts
-    img0 = makeImage(Gscanline01[0,...], shiftedScanOr[0,...],
-                     GscanDir01[0,:], GimageSize, GKDEsigma)
-    img1 = makeImage(Gscanline01[1,...], shiftedScanOr[1,...],
-                     GscanDir01[1,:], GimageSize, GKDEsigma)
+    img0 = makeImage(ns.Gscanline01[0,...], shiftedScanOr[0,...],
+                     ns.GscanDir01[0,:], ns.GimageSize, ns.GKDEsigma)
+    img1 = makeImage(ns.Gscanline01[1,...], shiftedScanOr[1,...],
+                     ns.GscanDir01[1,:], ns.GimageSize, ns.GKDEsigma)
 
     # measure alignment score with hybrid correlation
-    padxy = GimageSize - Gimg_shape
+    padxy = ns.GimageSize - ns.Gimg_shape
     Icorr = hybrid_correlation(img0, img1, padxy=padxy)
     searchScore = Icorr.max()
 
