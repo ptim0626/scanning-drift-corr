@@ -1,6 +1,7 @@
 """The file contains the SPmerge01linear function
 """
 
+import sys
 import warnings
 from multiprocessing import Pool, cpu_count, shared_memory
 
@@ -41,7 +42,7 @@ def SPmerge01linear(scanAngles, *images, **kwargs):
         the number of linear drift search to be performed. The default is 2.
     parallel : bool, optional
         whether to parallelise the search of linear drifts.
-        The default is True.
+        The default is True in Linux system, else False.
     flagReportProgress : bool, optional
         whether to show progress bars or not. Default to True.
     flagPlot : bool, optional
@@ -71,7 +72,7 @@ def SPmerge01linear(scanAngles, *images, **kwargs):
     paddingScale = kwargs.get('paddingScale', 1.125)
     flagReportProgress = kwargs.get('flagReportProgress', True)
     flagPlot = kwargs.get('flagPlot', True)
-    parallel = kwargs.get('parallel', True)
+    parallel = kwargs.get('parallel', True if 'linux' in sys.platform else False)
     niter = kwargs.get('niter', 2)
 
     # initialise the sMerge object

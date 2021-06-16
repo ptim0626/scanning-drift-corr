@@ -1,6 +1,7 @@
 """The file contains the SPmerge02_final function
 """
 
+import sys
 import warnings
 from multiprocessing import Pool, cpu_count, shared_memory
 
@@ -28,7 +29,7 @@ def SPmerge02_final(sm, scanOrStep, **kwargs):
         from changing their order. Default to True.
     parallel : bool, optional
         whether to parallelise the alignment for scan lines.
-        The default is True.
+        The default is True in Linux system, else False.
 
     Returns
     -------
@@ -60,7 +61,7 @@ def SPmerge02_final(sm, scanOrStep, **kwargs):
     pixelsMovedThreshold = kwargs.get('pixelsMovedThreshold', 0.1)
     stepSizeReduce = kwargs.get('stepSizeReduce', 1/2)
     flagPointOrder = kwargs.get('flagPointOrder', True)
-    parallel = kwargs.get('parallel', True)
+    parallel = kwargs.get('parallel', True if 'linux' in sys.platform else False)
 
     # Reset pixels moved count
     pixelsMoved = 0

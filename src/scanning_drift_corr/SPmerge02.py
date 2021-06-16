@@ -1,6 +1,7 @@
 """The file contains the SPmerge02 function
 """
 
+import sys
 import warnings
 
 import numpy as np
@@ -58,7 +59,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
         Default to 1.
     parallel : bool, optional
         whether to parallelise the alignment for scan lines.
-        The default is True.
+        The default is True in Linux system, else False.
 
     ------------------ For global phase correlation ------------------
     flagGlobalShift : bool, optional
@@ -126,7 +127,7 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
     stepSizeReduce = kwargs.get('stepSizeReduce', 1/2)
     flagPointOrder = kwargs.get('flagPointOrder', True)
     originWindowAverage = kwargs.get('originWindowAverage', 1)
-    parallel = kwargs.get('parallel', True)
+    parallel = kwargs.get('parallel', True if 'linux' in sys.platform else False)
 
     # for global phase correlation
     flagGlobalShift = kwargs.get('flagGlobalShift', False)
