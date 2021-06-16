@@ -25,6 +25,11 @@ the MATLAB version comparing is in `matlab_modified`. Some modifications are
 made during the translation, mainly to address floating-point errors.
 
 ## Installation
+The package is available in conda-forge:
+```
+conda install -c conda-forge scanning_drift_corr
+```
+
 To install via pip:
 ```
 pip install scanning_drift_corr
@@ -36,11 +41,26 @@ directory run
 pip install -e .
 ```
 
+Version `1.0.0` can be used with Python version >= 3.7 but the parallel
+implementation is broken in Windows/macOS :( Subsequent version supports Python
+version >= 3.8 due to the usage of `shared_memory` in the standard library
+`multiprocessing`, and the parallel implementation works in different systems.
+However, see [notes](#notes-on-parallel-implementation) below.
+
 ## Usage
 After installing, you can try to run `example.py`.  This script illustrates
 basic usage of the Python interface.
 
 A Jupyter notebook `example.ipynb` is also available.
+
+## Notes on parallel implementation
+`SPmerge01linear` and `SPmerge02` can be provided with `parallel=True` for
+parallel computation. This works well in Unix system where processes are
+forked, but in Windows/macOS processes are spawned and the parallel
+implementation is (usually) slower than the serial one. The default behaviour
+for Unix system is `parallel=True` and for Windows/macOS is `parallel=False`.
+You are welcome to experiment yourself. See [here](https://docs.python.org/3/library/multiprocessing.html#contexts-and-start-methods)
+for details.
 
 ## TODO
 - [x] refactoring of the codes (currently everything flying around)
