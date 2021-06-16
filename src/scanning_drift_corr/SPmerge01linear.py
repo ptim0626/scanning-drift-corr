@@ -2,7 +2,7 @@
 """
 
 import warnings
-from multiprocessing import Pool, Manager, cpu_count
+from multiprocessing import Pool, cpu_count, shared_memory
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -181,19 +181,40 @@ def _get_linear_alignment_score(sm, linearSearch, inds, flagReportProgress,
     linearSearchScore = np.zeros((linearSearch.size, linearSearch.size))
 
     if parallel:
-        # set Manager Namespace to avoid duplication in every worker
-        ns = _set_manager_namespace(sm)
+        # set shared memory, used by different processes
+        Z = _set_shm_instance(sm, inds, xDrift, yDrift)
+        shm_scanLines01 = Z[0]
+        shm_scanDir01 = Z[1]
+        shm_scanOr01 = Z[2]
+        shm_inds = Z[3]
+        shm_xDrift = Z[4]
+        shm_yDrift = Z[5]
 
         # the tasks include all shifted scanline origins by different shifts
         tasks = []
         for a0 in range(linearSearch.size):
             for a1 in range(linearSearch.size):
-                xyShift = np.hstack([inds*xDrift[a0,a1], inds*yDrift[a0,a1]])
-                shiftedOr = sm.scanOr[:2, ...] + xyShift.T
-                tasks.append([shiftedOr, a0, a1, ns])
+                tasks.append([a0, a1, sm.nr, sm.nc, sm.imageSize, sm.KDEsigma,
+                              xDrift.shape, yDrift.shape, shm_scanLines01,
+                              shm_scanDir01, shm_scanOr01, shm_inds,
+                              shm_xDrift, shm_yDrift])
 
         linearSearchScore = _parallel_search(linearSearch,
                                              flagReportProgress, tasks)
+
+        # clean up the shared memory blocks
+        shm_scanLines01.close()
+        shm_scanDir01.close()
+        shm_scanOr01.close()
+        shm_inds.close()
+        shm_xDrift.close()
+        shm_yDrift.close()
+        shm_scanLines01.unlink()
+        shm_scanDir01.unlink()
+        shm_scanOr01.unlink()
+        shm_inds.unlink()
+        shm_xDrift.unlink()
+        shm_yDrift.unlink()
     else:
         # perform serial search
         linearSearchScore = _serial_search(sm, linearSearch,
@@ -202,37 +223,91 @@ def _get_linear_alignment_score(sm, linearSearch, inds, flagReportProgress,
 
     return linearSearchScore
 
-def _set_manager_namespace(sm):
-    """Do not want to copy duplicated data in each worker
-    Make Manager Namespace to hold the reference
+def _set_shm_instance(sm, inds, xDrift, yDrift):
+    """set shared memory block for different arrays that used by all processes
     """
 
-    m = Manager()
-    ns = m.Namespace()
+    # scanLines
+    shm_scanLines01 = shared_memory.SharedMemory(create=True,
+                                                 size=sm.scanLines[:2, ...].nbytes)
+    tmp = np.ndarray(sm.scanLines[:2, ...].shape, dtype=sm.scanLines.dtype,
+                     buffer=shm_scanLines01.buf)
+    tmp[:] = sm.scanLines[:2, ...]
 
-    ns.Gscanline01 = sm.scanLines[:2, ...]
-    ns.GscanDir01 = sm.scanDir[:2, :]
-    ns.GimageSize = sm.imageSize
-    ns.GKDEsigma = sm.KDEsigma
-    ns.Gimg_shape = sm.img_shape
+    # scanDir
+    shm_scanDir01 = shared_memory.SharedMemory(create=True,
+                                               size=sm.scanDir[:2, :].nbytes)
+    tmp = np.ndarray(sm.scanDir[:2, :].shape, dtype=sm.scanDir.dtype,
+                     buffer=shm_scanDir01.buf)
+    tmp[:] = sm.scanDir[:2, :]
 
-    return ns
+    # scanOr
+    shm_scanOr01 = shared_memory.SharedMemory(create=True,
+                                              size=sm.scanOr[:2, ...].nbytes)
+    tmp = np.ndarray(sm.scanOr[:2, ...].shape, dtype=sm.scanOr.dtype,
+                     buffer=shm_scanOr01.buf)
+    tmp[:] = sm.scanOr[:2, ...]
+
+    # inds
+    shm_inds = shared_memory.SharedMemory(create=True, size=inds.nbytes)
+    tmp = np.ndarray(inds.shape, dtype=inds.dtype, buffer=shm_inds.buf)
+    tmp[:] = inds[:]
+
+    # xDrift
+    shm_xDrift = shared_memory.SharedMemory(create=True, size=xDrift.nbytes)
+    tmp = np.ndarray(xDrift.shape, dtype=xDrift.dtype, buffer=shm_xDrift.buf)
+    tmp[:] = xDrift[:]
+
+    # yDrift
+    shm_yDrift = shared_memory.SharedMemory(create=True, size=yDrift.nbytes)
+    tmp = np.ndarray(yDrift.shape, dtype=yDrift.dtype, buffer=shm_yDrift.buf)
+    tmp[:] = yDrift[:]
+
+    return (shm_scanLines01, shm_scanDir01, shm_scanOr01, shm_inds,
+            shm_xDrift, shm_yDrift)
 
 def _makeimage(task):
     """determine the correlation score for this particular shifted origins
     a0, a1 records the index of the drift
     """
 
-    shiftedScanOr, a0, a1, ns = task
+    # unpack variables in the provided order
+    a0 = task[0]
+    a1 = task[1]
+    nr = task[2]
+    nc = task[3]
+    imageSize = task[4]
+    KDEsigma = task[5]
+    xDrift_shape = task[6]
+    yDrift_shape = task[7]
+    shm_scanLines01 = task[8]
+    shm_scanDir01 = task[9]
+    shm_scanOr01 = task[10]
+    shm_inds = task[11]
+    shm_xDrift = task[12]
+    shm_yDrift = task[13]
+
+    # create numpy array from the shared memory blocks
+    scanLines01 = np.ndarray((2, nr, nc), dtype=float,
+                             buffer=shm_scanLines01.buf)
+    scanDir01 = np.ndarray((2, 2), dtype=float, buffer=shm_scanDir01.buf)
+    inds = np.ndarray((nr, 1), dtype=float, buffer=shm_inds.buf)
+    xDrift = np.ndarray(xDrift_shape, dtype=float, buffer=shm_xDrift.buf)
+    yDrift = np.ndarray(yDrift_shape, dtype=float, buffer=shm_yDrift.buf)
+    scanOr01 = np.ndarray((2, 2, nr), dtype=float, buffer=shm_scanOr01.buf)
+
+    # get the shifted scanline origins by this xy shift
+    xyShift = np.hstack([inds*xDrift[a0,a1], inds*yDrift[a0,a1]])
+    shiftedScanOr = scanOr01 + xyShift.T
 
     # generate trial images after applying specific drifts
-    img0 = makeImage(ns.Gscanline01[0,...], shiftedScanOr[0,...],
-                     ns.GscanDir01[0,:], ns.GimageSize, ns.GKDEsigma)
-    img1 = makeImage(ns.Gscanline01[1,...], shiftedScanOr[1,...],
-                     ns.GscanDir01[1,:], ns.GimageSize, ns.GKDEsigma)
+    img0 = makeImage(scanLines01[0,...], shiftedScanOr[0,...],
+                     scanDir01[0,:], imageSize, KDEsigma)
+    img1 = makeImage(scanLines01[1,...], shiftedScanOr[1,...],
+                     scanDir01[1,:], imageSize, KDEsigma)
 
     # measure alignment score with hybrid correlation
-    padxy = ns.GimageSize - ns.Gimg_shape
+    padxy = imageSize - np.array([nr, nc])
     Icorr = hybrid_correlation(img0, img1, padxy=padxy)
     searchScore = Icorr.max()
 
