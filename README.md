@@ -24,6 +24,10 @@ The tests compare output from Python to MATLAB version at different breakpoints,
 the MATLAB version comparing is in `matlab_modified`. Some modifications are
 made during the translation, mainly to address floating-point errors.
 
+## Try it for yourself
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/ptim0626/scanning-drift-corr/HEAD?filepath=src%2Fscanning_drift_corr%2Fexamples%2Fexample.ipynb)
+
+
 ## Installation
 The package is available in conda-forge:
 ```
