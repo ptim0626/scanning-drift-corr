@@ -13,39 +13,40 @@ def SPmerge03(sm, **kwargs):
     """ Final scanning probe merge script. This script uses KDE and Fourier
     filtering to produce a combined image from all component scans. The
     Fourier weighting used (if flag is enabled) is cos(theta)^2, where
-    theta is the angle from the scan direction. This essentially zeros out
+    theta is the scan angle. This essentially zeros out
     the slow scan direction, while weighting the fast scan direction at 100%.
 
     Parameters
     ----------
     sm : sMerge object
-        the sMerge object contains all the data.
+        The sMerge object contains all the data.
     KDEsigma : float, optional
-        Gaussian sigma value used in kernel density estimator (pixels)
+        Gaussian sigma value used in kernel density estimator (KDE) 
+        (pixels; default 1.5)
     upsampleFactor : int, optional
         upsampling factor used in image generation, a large upsampleFactor
-        can be very slow
+        can be very slow (default 2)
     sigmaDensity : float, optional
-        smoothing sigma value for density estimation (pixels)
+        smoothing sigma value for density estimation (pixels; default 4)
     boundary : int
-        thickness of windowed boundary (pixels)
+        thickness of windowed boundary (pixels; default 8)
     flagFourierWeighting : bool
-        set to true to enable cos(theta)^2 Fourier weights
+        set to true to enable cos(theta)^2 Fourier weights (default True)
     flagDownsampleOutput : bool
         set to true to downsample output to the original resolution, as
-        opposed to that of upsampleFactor
+        opposed to that of upsampleFactor (default True)
     flagPlot : bool
-        to plot the final image of not
+        Plot the final image or not (default True)
 
     Returns
     -------
     imageFinal : ndarray
-        final combined image.
+        Final combined image.
     signalArray : ndarray
-        image stack containing estimated image from each scan, with axis 0
+        Image stack containing estimated image from each scan, with axis 0
         the navigation index
     densityArray : ndarray
-        image stack containing estimated density of each scan, with axis 0
+        Image stack containing estimated density of each scan, with axis 0
         the navigation index
     """
 
