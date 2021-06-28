@@ -22,10 +22,10 @@ def SPmerge02(sm, refineMaxSteps=None, initialRefineSteps=None, **kwargs):
     sm : sMerge object
         the sMerge object contains all the data.
     refineMaxSteps : int, optional
-        maximum number of refinement steps. Default to None, set to 32.
+        maximum number of refinement steps. Default is None uses 32 iterations.
     initialRefineSteps : int, optional
-        number of initial alignment steps. Default to None, set to 8 if it has
-        not been performed, or set to 0 if it has been performed
+        number of initial alignment steps. Default is None uses 8 if it has
+        not been performed, or sets to 0 if it has been performed
 
     ------------------ For initial alignment ------------------
     densityCutoff : float, optional
